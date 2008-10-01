@@ -1,0 +1,20 @@
+#! /bin/bash
+
+if [ "$1" == "help" ]; then
+   echo Will delete all dir with matching a pattern
+   echo Empty pattern is just show
+   echo Usage: ${0##*/} pattern
+   exit
+fi
+
+for i in $(seq -w 2 82); do
+   stuff=$(ssh thop$i ls /usr/scratch/$USER)
+   if [ -n "$stuff" ]; then
+      echo Stuff on thop$i
+      echo $stuff
+      if [ -n "$1" ] && [ -n "$(echo $stuff| grep $1)" ]; then
+         ssh thop$i rm -r /usr/scratch/$USER/$1
+         echo Stuff removed
+      fi
+   fi
+done

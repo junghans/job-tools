@@ -1,0 +1,41 @@
+#! /bin/bash
+
+#version 0.1f ,06.02.08 -- initial version
+#version 0.1g ,16.04.08 -- better version show
+usage="Usage: ${0##*/} <pattern>"
+
+help () {
+  cat << eof
+Find host matching to a pattern !
+$usage
+OPTIONS:
+-h, --help      Show this help
+-v, --version   Show version
+
+Examples:   ${0##*/} pckr
+            ${0##*/} thop
+            ${0##*/}
+
+Send bugs and comment to junghans@mpip-mainz.mpg.de
+eof
+}
+
+while [ "${1#-}" != "$1" ]; do
+ case $1 in 
+   -h | --help)
+    help
+    exit 0;;
+   -v | --version)
+    echo "${0##*/}", $(sed -ne 's/^#\(version.*\) -- .*$/\1/p' $0 | sed -n '$p') by C. Junghans
+    exit 0;;
+  *)
+   echo Unknown option \'$1\' - ignored
+   shift ;;
+ esac
+done
+
+cd $HOME/bin/hosts
+for i in $(ls | grep ${1:-"$"}); do
+    echo ${i##*/}
+done
+#fs md5sum 6f25ec2f33c2185c6e58c1aadc05cc93

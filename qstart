@@ -1,0 +1,241 @@
+#! /bin/bash
+
+#version 0.1   ,29.09.08 -- initial version
+#version 0.2   ,29.09.08 -- added scratch option
+#version 0.3   ,30.09.08 -- added template options
+
+#defaults
+qsubmit="qsubmit"
+mpirun="yes"
+mpicmd="/opt/lam/bin/mpirun"
+ncpus=1
+name="q"
+quiet="no"
+auto="no"
+run="yes"
+batch=""
+logfile=""
+finish_file=""
+time="no"
+scratch_dir="/usr/scratch"
+scratch="no"
+template="_XXXXX"
+
+showhelp() {
+ cat << eoh
+A script to start a job on the cluster using $qsubmit
+Also see $qsubmit --help.
+
+It builds a very simple qsub script (see -p options) and
+run it.
+
+${0##*/} [OPTIONS] COMMAND [options]
+
+SCRIPT OPTIONS:
+    --name NAME     Change global name of script
+                    Default: $name
+    --batch NAME    Change name of the qsub script
+                    Default:  \$(mktemp ${name}$template)
+                    (Argument is NAME+TEMPLATE)
+    --log NAME      Change name of the output file
+                    Default: log_"batchname"
+-a, --auto          Automatic filename from the first argument
+    --template TEXT Change template for mktemp
+                    Default: $template
+-n, --notemplate    Same as --template ""
+-t, --time          Adds a date command before and after the command
+-N                  Number of cpus
+                    Default: $ncpus
+-f, --finish NAME   Create a file NAME when succesfully finished
+                    Useful if you wait for result:
+                    "while true; do [[ -f NAME ]] && break;done"
+    --scratch       Use scratch on "$scratch_dir/\$USER/" (EXPERIMENTAL)
+    --needed FILES  Give the files needed to be copy to the scratch dir to
+                    run, remember to use quotes ("file1 file2 file3" or "\$(ls *.d)")
+                    (implies --scratch)
+    --nompirun      Do NOT add mpirun automatically to the command line for ncpus > 0
+
+RUN OPTIONS:
+    --norun        Do NOT run the qsub script in the end
+-p, --print        Only print the qsub script (implies --norun)
+-q, --quiet        Be quiet
+-v, --version      Prints version
+-h, --help         Show this help message
+
+The usage of the scratch space is still experimental!!!
+You may add the files to copy there with --needed.
+Give full path of binary or add itself to --needed and use "./".
+
+Examples:
+   ${0##*/} -8p sleep 30
+   ${0##*/} -8p --nompirun mpirun -np 8 sleep 30
+   ${0##*/} --name gromacs mdrun -v
+   ${0##*/} -8 --needed traj.trr mdrun
+   ${0##*/} "echo -e \"SOL\nSOL\" | g_rdf -b 100 -n index.ndx"
+
+Send comments and bugs to: junghans@mpip-mainz.mpg.de
+eoh
+}
+
+shopt -s extglob
+
+while [ "${1#-}" != "$1" ]; do
+  if [ "${1#--}" = "$1" ] && [ -n "${1:2}" ]; then
+    if [ "${1#-[f]}" != "${1}" ]; then
+       set -- "${1:0:2}" "${1:2}" "${@:2}"
+    else
+       set -- "${1:0:2}" "-${1:2}" "${@:2}"
+    fi
+ fi
+ case $1 in
+  -[0-9] )
+   ncpus=${1#-}
+   shift;;
+  -p | --print )
+   batch="/dev/stdout"
+   run="no"
+   shift;;
+   --batch )
+   batch="$2"
+   shift 2;;
+   --name )
+   name="$2"
+   shift 2;;
+   -f | --finish )
+   finish_file="$2"
+   shift 2;;
+   -a | --auto )
+   auto="yes"
+   shift ;;
+   --norun )
+   run="no"
+   shift ;;
+   -n | --notemplate )
+   template=""
+   shift ;;
+   --template )
+   template="$2"
+   shift 2;;
+   --scratch )
+   scratch="yes"
+   shift ;;
+   --needed )
+   filelist=$2
+   scratch="yes"
+   shift 2;;
+   -t | --time )
+   time="yes"
+   shift ;;
+   --nompirun )
+   mpirun="no"
+   shift ;;
+  -v | --version)
+   echo ${0##*/}, $(sed -ne 's/^#\(version.*\) -- .*$/\1/p' $0 | sed -n '$p') by C. Junghans
+   exit 0;;
+  -h | --help)
+   showhelp
+   exit 0;;
+  *)
+   echo Unknown option \'$1\' >&2
+   exit 1;;
+ esac
+done
+
+if [ -z "$1" ]; then
+   $0 --help
+   exit 1
+fi
+
+[[ $auto = "yes" ]] && name=$1
+
+if [ "$mpirun" = "no" ] || [ $ncpus -eq 1 ]; then
+   cmdline="$*"
+else
+   cmdline="$mpicmd -np $ncpus $*"
+fi
+
+if [ -z "$batch" ]; then
+   if [ -n $(type -p mktemp) ]; then
+      batch=$(mktemp ${name}${template}) || { echo mktemp could not generate file >&2; exit 1; }
+   else
+      echo No mktemp found >&2
+      batch=$name
+   fi
+fi
+
+if [ -z "$logfile" ]; then
+   if [ "$batch" = "/dev/stdout" ]; then
+      logfile="log_$name"
+   else
+      logfile="log_$batch"
+   fi
+fi
+
+if [ "$quiet" = "no" ] && [ "$batch" != "/dev/stdout" ]; then
+   echo qsubscript: $batch
+   echo logfile: $logfile
+fi
+
+echo \#! /bin/bash >> $batch
+if [ $ncpus -eq 1 ]; then
+   echo \#$ -q all.q >> $batch
+elif [ $ncpus -eq 2 ]; then
+   echo \#$ -q dual.q >> $batch
+   echo \#$ -pe lammpi2cores 2 >> $batch
+elif [ $ncpus -eq 8 ]; then
+   echo \#$ -q octal.q >> $batch
+   echo \#$ -pe lammpi8cores 8 >> $batch
+else
+   echo Number of cpus unsupported >&2
+   [[ "$batch" = "/dev/stdout" ]] || rm $batch
+   exit 1
+fi
+
+cat <<EOF >>$batch
+#$ -cwd
+#$ -j y
+#$ -m n
+#$ -o $logfile
+
+source ~/.bashrc
+
+cd $PWD
+echo I am job \$JOB_ID on \$HOSTNAME
+EOF
+
+if [ "$scratch" = "yes" ]; then
+   [[ "$time" = "yes" ]] && echo date >> $batch
+   cat <<EOF >>$batch
+olddir=\$PWD
+echo Copy needed files:
+echo $filelist
+newdir=$scratch_dir/\$USER/\$JOB_ID
+mkdir -p \$newdir
+for myfile in $filelist; do
+   cp \$myfile \$newdir
+done
+echo finished copying files
+cd \$newdir
+EOF
+fi
+
+echo echo Starting simulation >> $batch
+[[ "$time" = "yes" ]] && echo date >> $batch
+echo $cmdline >> $batch
+echo result=\$? >> $batch
+
+if [ "$scratch" = "yes" ]; then
+   [[ "$time" = "yes" ]] && echo date >> $batch
+   cat <<EOF >>$batch
+echo Copy back files:
+ls
+cp -u * \$olddir
+echo finished copying files
+echo Removing scratch dir
+[[ \$result -eq 0 ]] && rm -fr \$newdir
+EOF
+fi
+[[ "$time" = "yes" ]] && echo date >> $batch
+[[ -z "$finish_file" ]] || echo "[[ \$result -eq 0 ]] && touch $finish_file" >> $batch
+
+[[ "$run" = "yes" ]] && $qsubmit $batch

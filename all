@@ -1,0 +1,7 @@
+#! /bin/bash
+
+for i in $(findhost pckr)
+do
+echo $i	
+$i $*
+done

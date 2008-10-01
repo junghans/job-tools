@@ -1,0 +1,524 @@
+#!/bin/bash
+#
+# (C) 2007 Chr. Junghans
+# junghans@mpip-mainz.mpg.de
+
+#version 2.3   -- fix problem with "./" in programname
+#version 2.4   -- issue with 2>>&1
+#version 2.4.4 -- fixed a problem with file names with "-"
+#version 2.4.5 -- change the parameter matching
+#version 2.5.0 -- added nice option
+#version 2.5.1 -- fixed a bug in --add
+#version 2.6.0 -- allowing better short opts
+#version 2.6.1 -- fixed string bug in short opts
+#version 2.7.0 -- fixed the problem with too gib attachments
+#version 2.7.1 -- remove base name function
+#version 3.0.0 -- make more use of functions and clean up
+#version 3.1.0 -- added --checkjobs --showjobs
+#version 3.1.1 -- bug in start batch
+#version 3.1.2 -- make use of sed
+#version 3.1.3 -- added --rmjobs --showlog
+#version 3.1.4 -- added --taillog
+#version 3.1.5 16.04.08 -- better version system
+#version 3.2.0 08.07.08 -- allows to use lammpi
+#version 3.3.0 23.09.08 -- autogenerate of startbatch name
+#version 3.4.0 26.09.08 -- added killjob option
+#version 3.4.1 27.09.08 -- bug with number
+
+
+##########################################
+################# Defaults ###############
+##########################################
+
+usage="Usage: ${0##*/} [OPTIONS] PROGRAM [PROGRAM-OPTIONS]"
+#mail=$USER
+mail="$USER@mpip-mainz.mpg.de"
+sendmail='yes'
+attachment='yes'
+mpinp="1"
+hostlist=""
+batchname=""
+batchname_template="startbatch.XXXX"
+common_hostlist="liste.mpi"
+mpilist="mpilist"
+findbest='no'
+host=''
+checkexist='yes'
+excute='yes'
+lines='100'
+add='>'
+quiet=''
+jobfile="$HOME/runingjobs"
+nice="19"
+mpitype="LAM"
+
+##########################################
+################# Functions ##############
+##########################################
+
+bulid_batchfile() {
+#Building ./$batchname
+if [ -z "$batchname" ]; then
+   if [ -n $(type -p mktemp) ]; then
+      batchname=$(mktemp $batchname_template)
+   else
+      batchname=${batchname_template%%.*}
+   fi
+fi
+cat > $batchname << eof
+#! /bin/bash
+#run $program
+cd $PWD
+eof
+if [ $mpinp -gt 1 ] && [ "$mpitype" == "LAM" ]; then
+   echo "lamboot" >> $batchname
+fi
+cat >> $batchname << eof
+nohup nice -$nice $mpicommand $wholeprogram $parameter $add $log 2>&1 &
+pid=\$!
+#add job to $jobfile
+line="\$HOSTNAME \$pid $program $jobtype $PWD $log $batchname"
+echo \$line >> $jobfile
+wait \$pid
+result=\$?
+eof
+
+if [ "$sendmail" = "yes" ]; then
+   if [ "$attachment" = "yes" ]; then
+      echo "attachments=\"-a $log\"" >> $batchname
+   else
+      echo "attachments=\"\"" >> $batchname
+   fi
+   cat >> $batchname << eof
+
+#if attachment is too big
+if [ -n "\$(ls -hs $log | grep -e "^[0-9.]*M")" ]; then
+   attachments=""
+fi
+
+#mailstuff
+if [ \$result -eq 0 ]; then
+  tail -$lines $log | mail -s 'START: $program finished ($log)' \$attachments $mail
+else
+  tail -$lines $log | mail -s 'START: $program aborted ($log)' \$attachments $mail
+fi
+eof
+fi
+
+cat >> $batchname << eof
+#remove job from $jobfile
+sed -i "\\|^\$line\\$|d" $jobfile
+rm -f ./$batchname
+eof
+}
+
+build_sshhost() {
+#find best host, if no host given and findbest is "yes"
+if [ $mpinp -eq 1 ] && [ -z "$host" ] && [ "$findbest" = "yes" ]; then
+   if [ -n "$(which $mpilist)" ]; then
+      besthost=$(mpilist -q -p 1)
+      if [ $? -ne 0 ]; then
+         echo Error at running $mpilist
+         exit 1
+      fi
+   else
+      echo $mpilist not found
+      exit 1
+   fi
+   host=$besthost
+fi
+
+#bulid sshhost extension
+if [ -n "$host" ] && [ "$host" != "$HOSTNAME" ]; then
+   sshhost="ssh $host"
+else
+   sshhost=""
+fi
+}
+
+check_exist() {
+#check if program exist if it is wanted
+if [ "$checkexist" = "yes" ]; then
+   wholeprogram=$(which $program 2> /dev/null)
+   # try local path, if ./ was not added to path
+   if [ -z "$wholeprogram" ]; then
+      wholeprogram=$(which ./$program 2> /dev/null)
+   fi
+   if [ ! -x "$wholeprogram" ]; then
+      echo program \'$program\' not found !
+      exit;
+   fi
+else
+   wholeprogram=$program
+fi
+#strip down name to get useful name
+program=${program##*/}
+}
+
+check_jobs(){
+check_log
+hosts=( $(awk '{print $1}' $jobfile) )
+pids=( $(awk '{print $2}' $jobfile) )
+for ((i=0;i<${#hosts[@]};i++)); do
+   if ssh ${hosts[$i]} ps -A | grep -qe "${pids[$i]}"; then
+     echo Job $((i+1)): ${pids[$i]} on ${hosts[$i]} found
+   else
+     echo Job $((i+1)): ${pids[$i]} on ${hosts[$i]} NOT found
+   fi
+done
+}
+
+check_log () {
+if [ ! -r "$jobfile" ]; then
+   echo Jobfile \($jobfile\) not readable or not found!
+   exit 1
+fi
+}
+
+check_for_mpi() {
+#mpi things
+if [ $mpinp -gt 1 ]; then
+ #problem with lamboot, still to do...
+   if [ "$forcempi" = "no" ] && [ -n "$(which lamboot)" ]; then
+      echo lamboot found, this is not supported!
+      echo use --forcempi to ignore \(Good luck\) !
+      exit 1
+   fi
+   if [ "$mpitype" == "CH4" ]; then
+      #if mpijob is a file
+      if [ -z "$hostlist" ]; then
+         $hostlist="$common_hostlist"
+         if [ -n "$(which $mpilist)" ]; then
+            $mpilist $quiet -o $hostlist $np
+            if [ $? -ne 0 ]; then
+               echo Error at running $mpilist
+               exit 1
+            fi
+         else
+            echo mpilist not found
+            exit 1
+         fi
+      fi
+      mpicommand="mpirun -nolocal -np $mpinp -machinefile $hostlist"
+      #check if mpirun exist
+   elif [ "$mpitype" == "LAM" ]; then
+      mpicommand="mpirun -np $mpinp"
+   else
+      echo mpitype \'$mpitype\' unknown
+      exit 1
+   fi
+   if [ -z "$(which mpirun)" ]; then
+      echo mpirun not found!
+      echo start job again from a host with mpirun or with --host option!
+      exit 1
+   fi
+   jobtype='(MPI)'
+else
+   mpicommand=''
+   jobtype='(SP)'
+fi
+}
+
+job_exist() {
+if [ $1 -gt $(wc -l < $jobfile) ]; then
+   echo Job $1 not found !
+   exit 1
+fi
+}
+
+kill_job() {
+check_log
+number="$1"
+job_exist $number
+host=$(awk "(NR==$number){print \$1}" $jobfile)
+pid=$(awk "(NR==$number){print \$2}" $jobfile)
+batchname=$(awk "(NR==$number){print \$7}" $jobfile)
+echo $host $pid
+if [ "$host" = "$HOSTNAME" ]; then
+   pgid=$(ps -aj | awk "(\$1==$pid){print \$2}")
+   pids=$(ps -aj | awk "(\$2==$pgid){print \$0}" | awk "!/$batchname/{print \$1}")
+   kill $pids
+else
+   pgid=$(ssh $host "ps -aj" | awk "(\$1==$pid){print \$2}")
+   pids=$(ssh $host "ps -aj" | awk "(\$2==$pgid){print \$0}" | awk "!/$batchname/{print \$1}")
+   ssh $host "kill $pids"
+fi
+[[ $? -ne 0 ]] && echo Error at killing job $number && exit 1
+echo Job $number killed
+}
+
+number_check(){
+number="$1"
+option="$2"
+if [ -z "$number" ] || [ -n "${number//[0-9]}" ]; then
+   echo argument after $option should be a number
+   exit 1
+fi
+}
+
+rm_job() {
+check_log
+number="$1"
+job_exist $number
+batchname=$(awk "(NR==$number){print \$7}" $jobfile)
+path=$(awk "(NR==$number){print \$3}" $jobfile)
+path=${path%/*}
+if [ -f $path/$batchname ]; then
+   rm -i $path/$batchname
+else
+   echo batchfile \"$batchname\"  of Job $number not found
+fi
+sed -i "${number}d" $jobfile
+echo Job $number removed from jobfile
+}
+
+showhelp() {
+ cat << eoh
+Make startbatch for PROGRAM and run it !
+It send you and email and add in to '$jobfile'
+$usage
+
+START OPTIONS:
+    --batchname FILE Change name of batchfile
+                      default: uses mktemp with template $batchname_template
+-p, --priority NUMBER Change nice factor
+                      default: '$nice'
+-l, --logfile FILE    Changes the name of the logfile,
+                      default: 'logPROGRAM'
+-a, --add             add output to the logfile
+                      default: create new logfile (overwrite)
+-m, --mail NAME       send mail to NAME
+                      default: '$mail'
+-n, --nomail          will not use mail function (ignores -m)
+    --noattach        will not send the logfile as attachments
+    --lines           change number of last lines of the logfile in the mail
+                      default: '$lines'
+    --noexist         do not check if program exist and is excutable
+    --noexecute       build batchfile, but do not run it
+
+MPI OPTIONS:
+    --mpinp #CPUS     start mpi job with #CPUS
+                      (ignores -r, -b, uses '$mpilist')
+                      will not work with LAMMPI only with MPICH4
+    --hostlist FILE   name of the machinefile for mpirun
+                      (ignored when no --mpinp given)
+    --mpitype NAME    change the standard mpi implentation (CH4 or LAM possible)
+                      default: '$mpitype'
+
+REMOTE OPTIONS:
+-r, --runat HOST      run on HOST instead of localhost
+                      (ignores -b)
+-b, --best            run Program on the maschine with the 
+                      lowest load (uses '$mpilist')
+
+JOBS OPTIONS:
+    --showjobs        Show running job (start by ${0##*/})
+    --showlog  NUMBER Show logfile for running job with number NUMBER
+    --taillog  NUMBER same as --showlog but tail and follow
+    --checkjobs       Check if running job still exist
+    --killjob NUMBER  Kill job with NUMBER
+    --rmjob   NUMBER  Remove job with NUMBER from jobfile
+                      (useful after crash)
+
+COMMON OPTIONS:
+-q, --quiet           be quiet
+-v, --version         Prints version
+-h, --help            Show this help message
+
+Send comments and bugs to: junghans@mpip-mainz.mpg.de
+eoh
+}
+
+show_jobs() {
+check_log
+echo running jobs \(NR HOSTNAME pid programname jobtype PWD logfile\)
+cat -n $jobfile
+}
+
+show_logfile() {
+check_log
+number="$1"
+job_exist $number
+path=$(sed -n "${number}p" $jobfile | awk '{print $5}')
+logfile=$(sed -n "${number}p" $jobfile | awk '{print $6}')
+#add path if logfile does not contain /
+if [ -n "${logfile/*\/*}" ]; then
+   logfile="${path}/$logfile"
+fi
+if [ ! -r "$logfile" ]; then
+   echo Logfile \($loffile\) not readable or not found!
+   exit 1
+else
+   $2 $logfile
+fi
+}
+
+start_message() {
+#Print Starting Message:
+if [ -z "$quiet" ]; then
+   echo Starting: \'$program\' $type with logfile \'$log\'
+   if [ -n "$parameter" ]; then
+      echo           and parameter \'$parameter\'
+   fi
+   if [ -n "$host" ]; then
+      echo           on maschine \'$host\'
+   fi
+fi
+}
+
+################################################
+############## Main Program ####################
+################################################
+
+while [ "${1#-}" != "$1" ]; do
+  if [ "${1#--}" = "$1" ] && [ -n "${1:2}" ]; then
+    if [ "${1#-[lmpr]}" != "${1}" ]; then
+       set -- "${1:0:2}" "${1:2}" "${@:2}"
+    else
+       set -- "${1:0:2}" "-${1:2}" "${@:2}"
+    fi
+ fi
+ case $1 in
+  -l | --logfile)
+   log="$2"
+   shift 2;;
+  -a | --add)
+   add='>>'
+   shift ;;
+  -q | --quiet)
+   quiet='-q'
+   shift ;;
+  --mpinp)
+   mpinp="$2"
+   if [ -n "${mpinp//[0-9]}" ] || [ $mpinp -le 1 ]; then
+     echo argument after --mpinp should be a number greater than 1
+     exit 1
+   fi
+   shift 2 ;;
+  --hostlist)
+   hostlist="$2"
+   if [ ! -r "$hostlist" ]; then
+      echo hostlist not readable !
+      exit 1
+   fi
+   shift 2 ;;
+  --mpitype)
+   mpitype="$2"
+   shift 2;;
+  -r | --runat)
+   host="$2"
+   shift 2 ;;
+  -b | --best)
+   findbest='yes'
+   shift ;;
+  -n | --nomail)
+   sendmail='no'
+   shift ;;
+  --noattach)
+   attachment='no'
+   shift ;;
+  -m | --mail)
+   mail="$2"
+   shift 2 ;;
+  --batchname)
+   batchname="$2"
+   shift 2 ;;
+  -p | --priority)
+   nice="$2";
+   number_check "$nice" "--priority"
+   if [ $nice -lt 0 ] || [ $nice -gt 19 ]; then
+      echo argument after --nice should be a number between 0-19
+      exit 1
+   fi
+   shift 2 ;;
+  --lines)
+   lines="$2"
+   number_check "$lines" "--lines"
+   if [ $lines -lt 1 ]; then
+     echo argument after --lines should be a number greater 0
+     exit 1
+   fi
+   shift 2 ;;
+  --noexist)
+   checkexist='no'
+   shift ;;
+  --noexecute)
+   excute='no'
+   shift ;;
+  --checkjobs)
+   check_jobs
+   exit 0;;
+  --showjobs)
+   show_jobs
+   exit 0;;
+  --showlog)
+   number="$2"
+   number_check "$number" "--showlog"
+   show_logfile "$number" "cat"
+   exit 0;;
+  --taillog)
+   number="$2"
+   number_check "$number" "--taillog"
+   show_logfile "$number" "tail -f"
+   exit 0;;
+  --rmjob)
+   number="$2"
+   number_check "$number" "--rmjob"
+   rm_job "$number"
+   exit 0;;
+  --killjob)
+   number="$2"
+   number_check "$number" "--killjob"
+   kill_job "$number"
+   exit 0;;
+  -v | --version)
+   echo ${0##*/}, $(sed -ne 's/^#\(version.*\) -- .*$/\1/p' $0 | sed -n '$p') by C. Junghans
+   exit 0;;
+  -h | --help)
+   showhelp
+   exit 0;;
+  *)
+   echo Erro: Unknown option \'$1\'
+   exit 1;;
+ esac
+done
+
+#Print usage and exit if no argument left
+if [ -z "$1" ]; then
+ echo Missing program name
+ echo $usage
+ echo help with --help
+ exit 1
+fi
+
+#set program name
+program=$1
+shift
+
+#define parameters
+parameter="$*"
+
+check_for_mpi
+
+build_sshhost
+
+check_exist
+
+#Define log
+if [ -z "$log" ]; then
+ log="log$program"
+fi
+
+bulid_batchfile
+
+chmod 700 ./$batchname
+
+start_message
+
+#Start or just print command
+if [ "$excute" = "yes" ]; then
+ nohup nice -$nice $sshhost $PWD/$batchname &> /dev/null &
+else
+ echo nohup nice -$nice $sshhost $PWD/$batchname
+fi
+#fs md5sum 1a0252eb73b3b36cbbdba82463ea7a81
