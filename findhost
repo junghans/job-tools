@@ -34,7 +34,7 @@ while [ "${1#-}" != "$1" ]; do
  esac
 done
 
-cd $HOME/bin/hosts
+cd $MYOPT/scripts/job_tools/hosts
 for i in $(ls | grep ${1:-"$"}); do
     echo ${i##*/}
 done
