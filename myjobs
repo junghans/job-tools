@@ -1,0 +1,42 @@
+#! /bin/bash 
+
+if [ "$1" == "help" ]; then
+   echo Usage:
+   echo "${0##*/}         -- show all jobs"
+   echo "${0##*/} all     -- show all jobs"
+   echo "${0##*/} local   -- show local jobs"
+   echo "${0##*/} cluster -- show cluster jobs"
+fi
+
+if [ "$1" == "all" ] || [ -z "$1" ]; then
+  show_local="yes"
+  show_thop="yes"
+  shift
+fi
+
+if [ "$1" == "cluster" ]; then
+  show_thop="yes"
+  shift
+fi
+
+if [ "$1" == "local" ]; then
+  show_local="yes"
+  shift
+fi
+
+if [ "$show_local" == "yes" ]; then
+   local_msg=$(start --showjobs)
+   if [ -n "$(echo "$local_msg" | sed '1d')" ]; then
+      echo LOCAL JOBS
+      echo "$local_msg"
+      echo
+   fi
+fi
+
+if [ "$show_thop" == "yes" ]; then
+   cluster_msg=$(ssh thop02 "export SGE_ROOT=/opt/SGE;/opt/SGE/bin/lx26-amd64/qstat -u $USER")
+   if [ -n "$cluster_msg" ]; then
+      echo JOBS ON L.C.A.R.S. \(thopXX\)
+      echo "$cluster_msg"
+   fi
+fi
