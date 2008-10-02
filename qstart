@@ -3,11 +3,17 @@
 #version 0.1   ,29.09.08 -- initial version
 #version 0.2   ,29.09.08 -- added scratch option
 #version 0.3   ,30.09.08 -- added template options
+#version 0.4   ,02.10.08 -- added job options
 
 #defaults
 qsubmit="qsubmit"
 mpirun="yes"
 mpicmd="/opt/lam/bin/mpirun"
+sge_path="/opt/SGE/bin/lx26-amd64"
+qsub="$sge_path/qsub"
+qstat="$sge_path/qstat"
+qdel="$sge_path/qdel"
+runhost="thop02"
 ncpus=1
 name="q"
 quiet="no"
@@ -21,46 +27,87 @@ scratch_dir="/usr/scratch"
 scratch="no"
 template="_XXXXX"
 
+check_job() {
+message=$(ssh $runhost "export SGE_ROOT=/opt/SGE;$qstat -u $USER")
+if [ -z "$(echo -e "$message" | grep "$1")" ]; then
+   echo Job \"$1\" on $runhost NOT found
+   exit 1
+else
+   echo Job \"$1\" on $runhost found
+   exit 0
+fi
+}
+
+kill_job() {
+ssh $runhost "export SGE_ROOT=/opt/SGE;$qdel $1"
+}
+
+pkill_job() {
+if [ -z "$1" ]; then
+   echo Expect a pattern
+   exit 1
+fi
+message=$(ssh $runhost "export SGE_ROOT=/opt/SGE;$qstat -u $USER")
+for job_id in $(echo -e "$message" | perl -nae "print \"\$F[0]\n\" if (\$F[2] =~ /$1/)"); do
+   echo $0 --killjob $job_id
+done
+}
+
+number_check(){
+number="$1"
+option="$2"
+if [ -z "$number" ] || [ -n "${number//[0-9]}" ]; then
+   echo argument after $option should be a number
+   exit 1
+fi
+}
+
 showhelp() {
  cat << eoh
-A script to start a job on the cluster using $qsubmit
-Also see $qsubmit --help.
-
+A script to start a job on the cluster.
 It builds a very simple qsub script (see -p options) and
 run it.
 
 ${0##*/} [OPTIONS] COMMAND [options]
 
 SCRIPT OPTIONS:
-    --name NAME     Change global name of script
-                    Default: $name
-    --batch NAME    Change name of the qsub script
-                    Default:  \$(mktemp ${name}$template)
-                    (Argument is NAME+TEMPLATE)
-    --log NAME      Change name of the output file
-                    Default: log_"batchname"
--a, --auto          Automatic filename from the first argument
-    --template TEXT Change template for mktemp
-                    Default: $template
--n, --notemplate    Same as --template ""
--t, --time          Adds a date command before and after the command
--N                  Number of cpus
-                    Default: $ncpus
--f, --finish NAME   Create a file NAME when succesfully finished
-                    Useful if you wait for result:
-                    "while true; do [[ -f NAME ]] && break;done"
-    --scratch       Use scratch on "$scratch_dir/\$USER/" (EXPERIMENTAL)
-    --needed FILES  Give the files needed to be copy to the scratch dir to
-                    run, remember to use quotes ("file1 file2 file3" or "\$(ls *.d)")
-                    (implies --scratch)
-    --nompirun      Do NOT add mpirun automatically to the command line for ncpus > 0
+    --name NAME      Change global name of script
+                     Default: $name
+    --batch NAME     Change name of the qsub script
+                     Default:  \$(mktemp ${name}$template)
+                     (Argument is NAME+TEMPLATE)
+    --log NAME       Change name of the output file
+                     Default: log_"batchname"
+-a, --auto           Automatic filename from the first argument
+    --template TEXT  Change template for mktemp
+                     Default: $template
+-n, --notemplate     Same as --template ""
+-t, --time           Adds a date command before and after the command
+-N                   Number of cpus
+                     Default: $ncpus
+-f, --finish NAME    Create a file NAME when succesfully finished
+                     Useful if you wait for result:
+                     "while true; do [[ -f NAME ]] && break;done"
+    --scratch        Use scratch on "$scratch_dir/\$USER/" (EXPERIMENTAL)
+    --needed FILES   Give the files needed to be copy to the scratch dir to
+                     run, remember to use quotes ("file1 file2 file3" or "\$(ls *.d)")
+                     (implies --scratch)
+    --nompirun       Do NOT add mpirun automatically to the command line for ncpus > 0
 
 RUN OPTIONS:
-    --norun        Do NOT run the qsub script in the end
--p, --print        Only print the qsub script (implies --norun)
--q, --quiet        Be quiet
--v, --version      Prints version
--h, --help         Show this help message
+    --norun          Do NOT run the qsub script in the end
+-p, --print          Only print the qsub script (implies --norun)
+-q, --quiet          Be quiet
+-v, --version        Prints version
+-h, --help           Show this help message
+
+JOBS OPTIONS:
+    --showjobs       Show jobs running (on $runhost)
+    --checkjob JOB_ID Return true if job is still running
+    --showlog JOB_ID Show logfile for running job with number JOB_ID
+    --taillog JOB_ID same as --showlog but tail and follow
+    --killjob JOB_ID Kill job with NUMBER
+    --pkill PATTERN  Kill all jobs matching a pattern
 
 The usage of the scratch space is still experimental!!!
 You may add the files to copy there with --needed.
@@ -75,6 +122,17 @@ Examples:
 
 Send comments and bugs to: junghans@mpip-mainz.mpg.de
 eoh
+}
+
+show_jobs() {
+ssh $runhost "export SGE_ROOT=/opt/SGE;$qstat -u $USER"
+}
+
+show_logs() {
+message=$(ssh $runhost "export SGE_ROOT=/opt/SGE;$qstat -r -j $1")
+path=$(echo -e "$message" | awk '/^cwd/{ print $2}')
+logfile=$(echo -e "$message" | awk '/^stdout_path_list:/{ print $2}')
+$2 $path/$logfile
 }
 
 shopt -s extglob
@@ -129,6 +187,28 @@ while [ "${1#-}" != "$1" ]; do
    --nompirun )
    mpirun="no"
    shift ;;
+   --showjobs )
+   show_jobs
+   exit 0;;
+   --killjob )
+   number_check "$2" "--killjob"
+   kill_job $2
+   exit 0;;
+   --pkill )
+   pkill_job "$2"
+   exit 0;;
+   --checkjob )
+   number_check "$2" "--checkjob"
+   check_job $2
+   exit 0;;
+   --showlog )
+   number_check "$2" "--showlog"
+   show_logs "$2" "cat"
+   exit 0;;
+   --taillog )
+   number_check "$2" "--showlog"
+   show_logs "$2" "tailf"
+   exit 0;;
   -v | --version)
    echo ${0##*/}, $(sed -ne 's/^#\(version.*\) -- .*$/\1/p' $0 | sed -n '$p') by C. Junghans
    exit 0;;
@@ -238,4 +318,8 @@ fi
 [[ "$time" = "yes" ]] && echo date >> $batch
 [[ -z "$finish_file" ]] || echo "[[ \$result -eq 0 ]] && touch $finish_file" >> $batch
 
-[[ "$run" = "yes" ]] && $qsubmit $batch
+if [ "$run" = "yes" ]; then
+   ssh $runhost "export SGE_ROOT=/opt/SGE;cd $PWD;$qsub $batch"
+else
+   echo ssh $runhost \"export SGE_ROOT=/opt/SGE;cd $PWD;$qsub $batch\"
+fi
