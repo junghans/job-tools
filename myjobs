@@ -34,7 +34,7 @@ if [ "$show_local" == "yes" ]; then
 fi
 
 if [ "$show_thop" == "yes" ]; then
-   cluster_msg=$(ssh thop02 "export SGE_ROOT=/opt/SGE;/opt/SGE/bin/lx26-amd64/qstat -u $USER")
+   cluster_msg=$(qstart --showjobs)
    if [ -n "$cluster_msg" ]; then
       echo JOBS ON L.C.A.R.S. \(thopXX\)
       echo "$cluster_msg"
