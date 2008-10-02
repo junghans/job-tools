@@ -4,6 +4,7 @@
 #version 0.2   ,29.09.08 -- added scratch option
 #version 0.3   ,30.09.08 -- added template options
 #version 0.4   ,02.10.08 -- added job options
+#version 0.4.1 ,02.10.08 -- bugs fix in exit code
 
 #defaults
 qsubmit="qsubmit"
@@ -29,7 +30,7 @@ template="_XXXXX"
 
 check_job() {
 message=$(ssh $runhost "export SGE_ROOT=/opt/SGE;$qstat -u $USER")
-[[ $? -ne 0 ]] && exit 1
+[[ $? -eq 0 ]] || exit 1
 if [ -z "$(echo -e "$message" | awk "(\$1=$1){print \$0}")" ]; then
    [[ "$quiet" = "yes" ]] || echo Job \"$1\" on $runhost NOT found
    exit 1
@@ -41,7 +42,7 @@ fi
 
 kill_job() {
 ssh $runhost "export SGE_ROOT=/opt/SGE;$qdel $1"
-[[ $? -ne 0 ]] && exit 1
+[[ $? -eq 0 ]] || exit 1
 }
 
 pkill_job() {
@@ -50,7 +51,7 @@ if [ -z "$1" ]; then
    exit 1
 fi
 message=$(ssh $runhost "export SGE_ROOT=/opt/SGE;$qstat -u $USER")
-[[ $? -ne 0 ]] && exit 1
+[[ $? -eq 0 ]] || exit 1
 for job_id in $(echo -e "$message" | perl -nae "print \"\$F[0]\n\" if (\$F[2] =~ /$1/)"); do
    echo $0 --killjob $job_id
 done
@@ -130,12 +131,12 @@ eoh
 
 show_jobs() {
 ssh $runhost "export SGE_ROOT=/opt/SGE;$qstat -u $USER"
-[[ $? -ne 0 ]] && exit 1
+[[ $? -eq 0 ]] || exit 1
 }
 
 show_logs() {
 message=$(ssh $runhost "export SGE_ROOT=/opt/SGE;$qstat -r -j $1")
-[[ $? -ne 0 ]] && exit 1
+[[ $? -eq 0 ]] || exit 1
 path=$(echo -e "$message" | awk '/^cwd/{ print $2}')
 logfile=$(echo -e "$message" | awk '/^stdout_path_list:/{ print $2}')
 $2 $path/$logfile
@@ -329,7 +330,7 @@ fi
 
 if [ "$run" = "yes" ]; then
    ssh $runhost "export SGE_ROOT=/opt/SGE;cd $PWD;$qsub $batch"
-   [[ $? -ne 0 ]] && { echo Failed >&2; exit 1; }
+   [[ $? -eq 0 ]] || { echo Failed >&2; exit 1; }
 else
-   echo ssh $runhost \"export SGE_ROOT=/opt/SGE;cd $PWD;$qsub $batch\"
+   echo "ssh $runhost \"export SGE_ROOT=/opt/SGE;cd $PWD;$qsub $batch\""
 fi
