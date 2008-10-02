@@ -30,10 +30,10 @@ template="_XXXXX"
 check_job() {
 message=$(ssh $runhost "export SGE_ROOT=/opt/SGE;$qstat -u $USER")
 if [ -z "$(echo -e "$message" | grep "$1")" ]; then
-   echo Job \"$1\" on $runhost NOT found
+   [[ "$quiet" = "yes" ]] || echo Job \"$1\" on $runhost NOT found
    exit 1
 else
-   echo Job \"$1\" on $runhost found
+   [[ "$quiet" = "yes" ]] || echo Job \"$1\" on $runhost found
    exit 0
 fi
 }
@@ -104,6 +104,7 @@ RUN OPTIONS:
 JOBS OPTIONS:
     --showjobs       Show jobs running (on $runhost)
     --checkjob JOB_ID Return true if job is still running
+                     useful; \"while qstart -q --checkjob 53478; do :; done\"
     --showlog JOB_ID Show logfile for running job with number JOB_ID
     --taillog JOB_ID same as --showlog but tail and follow
     --killjob JOB_ID Kill job with NUMBER
@@ -152,6 +153,9 @@ while [ "${1#-}" != "$1" ]; do
   -p | --print )
    batch="/dev/stdout"
    run="no"
+   shift;;
+  -q | --quiet )
+   quiet="yes"
    shift;;
    --batch )
    batch="$2"
