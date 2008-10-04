@@ -6,6 +6,7 @@
 #version 0.4   ,02.10.08 -- added job options
 #version 0.4.1 ,02.10.08 -- bugs fix in exit code
 #version 0.4.2 ,02.10.08 -- added --queueinfo
+#version 0.4.3 ,04.10.08 -- bug in checkjob with zero msg
 
 #defaults
 qsubmit="qsubmit"
@@ -32,7 +33,7 @@ template="_XXXXX"
 check_job() {
 message=$(ssh $runhost "export SGE_ROOT=/opt/SGE;$qstat -u $USER")
 [[ $? -eq 0 ]] || exit 1
-if [ -z "$(echo -e "$message" | awk "(\$1=$1){print \$0}")" ]; then
+if [ -z "$message" ] || [ -z "$(echo -e "$message" | awk "(\$1=$1){print \$0}")" ]; then
    [[ "$quiet" = "yes" ]] || echo Job \"$1\" on $runhost NOT found
    exit 1
 else
