@@ -2,6 +2,7 @@
 
 #version 0.1f ,06.02.08 -- initial version
 #version 0.1g ,16.04.08 -- better version show
+#version 0.1h ,05.10.08 -- better sol for empty pattern
 usage="Usage: ${0##*/} <pattern>"
 
 help () {
@@ -35,7 +36,7 @@ while [ "${1#-}" != "$1" ]; do
 done
 
 cd $MYOPT/scripts/job_tools/hosts
-for i in $(ls | grep ${1:-"$"}); do
+for i in $(ls | grep "$1"); do
     echo ${i##*/}
 done
 #fs md5sum 6f25ec2f33c2185c6e58c1aadc05cc93
