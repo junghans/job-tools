@@ -3,6 +3,8 @@
 #version 0.1f ,06.02.08 -- initial version
 #version 0.1g ,16.04.08 -- better version show
 #version 0.1h ,05.10.08 -- better sol for empty pattern
+#version 0.1i ,05.10.08 -- added --hg option
+
 usage="Usage: ${0##*/} <pattern>"
 
 help () {
@@ -28,6 +30,9 @@ while [ "${1#-}" != "$1" ]; do
     exit 0;;
    -v | --version)
     echo "${0##*/}", $(sed -ne 's/^#\(version.*\) -- .*$/\1/p' $0 | sed -n '$p') by C. Junghans
+    exit 0;;
+   --hg)
+    echo "${0##*/}: $(sed -ne 's/^#version.* -- \(.*\)$/\1/p' $0 | sed -n '$p')"
     exit 0;;
   *)
    echo Unknown option \'$1\' - ignored
