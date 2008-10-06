@@ -1,0 +1,85 @@
+jobs_tools repo
+
+This repository contains script to start and handle jobs on different clusters and the
+local machine.
+
+Content:
+
+all        - a script to run a command everywhere 
+findhost   - find hostname matching a pattern
+start      - a local "queueing" system, start jobs somewhere,
+             get a mail when they are finished
+qstart     - run a command on the thop cluster
+mpilist    - find a host which is free
+clean_thop - remove stuff from the thop scratch space
+myjobs     - summarize running jobs
+wer        - who is logged in ? (like rwho)
+werist     - infomation about a user
+sshscript  - remember working dir after ssh.
+	     To make it work add
+	     "[[ -r ~/.mypath ]] && cd $(cat ~/.mypath) && rm -f ~/.mypath"
+             to your .bashrc
+pckrXX     - links to sshscript
+thopXX     - links to sshscript
+
+FILES_TO_INSTALL
+all
+hosts/thop02
+hosts/thop60
+hosts/thop76
+hosts/pckr95
+hosts/pckr96
+hosts/pckr97
+hosts/pckr98
+hosts/pckr99
+hosts/pckr100
+hosts/pckr80
+hosts/pckr89
+hosts/pckr41
+hosts/pckr43
+hosts/pckr44
+hosts/pckr78
+hosts/pckr91
+hosts/pckr48
+hosts/pckr49
+hosts/pckr92
+hosts/pckr53
+hosts/pckr54
+hosts/pckr55
+hosts/pckr56
+hosts/pckr58
+hosts/pckr59
+hosts/pckr62
+hosts/pckr63
+hosts/pckr64
+hosts/pckr65
+hosts/pckr66
+hosts/pckr67
+hosts/pckr68
+hosts/pckr69
+hosts/pckr70
+hosts/pckr71
+hosts/pckr72
+hosts/pckr73
+hosts/pckr74
+hosts/pckr75
+hosts/pckr76
+hosts/pckr77
+hosts/pckr79
+hosts/pckr81
+hosts/pckr82
+hosts/pckr83
+hosts/pckr84
+hosts/pckr85
+hosts/pckr86
+hosts/pckr88
+findhost
+qstart
+clean_thop
+start
+mpilist
+sshscript
+wer
+werist
+myjobs
+END_FILES_TO_INSTALL
