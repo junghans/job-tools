@@ -3,5 +3,4 @@
 echo -------------------
 echo You mean cvsth !!!!
 echo -------------------
-echo $HOSTNAME:$HNAME > ~/.myhost
 ssh -X cvsth $*
