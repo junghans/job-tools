@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# (C) 2007 Chr. Junghans
+# (C) 2008 Chr. Junghans
 # junghans@mpip-mainz.mpg.de
 
 #version 2.3   -- fix problem with "./" in progname
@@ -25,6 +25,7 @@
 #version 3.4.0 26.09.08 -- added killjob option
 #version 3.4.1 27.09.08 -- bug with number
 #version 3.4.1 06.10.08 -- added --progname, --check_job and --finish
+#version 3.5.0 06.10.08 -- added unique job_id
 
 
 ##########################################
@@ -54,6 +55,7 @@ nice="19"
 mpitype="LAM"
 progname=""
 finish_file=""
+uni_num_file="$HOME/.start_unimum"
 
 ##########################################
 ################# Functions ##############
@@ -76,11 +78,12 @@ eof
 if [ $mpinp -gt 1 ] && [ "$mpitype" == "LAM" ]; then
    echo "lamboot" >> $batchname
 fi
+job_id=$(unique_number)
 cat >> $batchname << eof
 nohup nice -$nice $mpicommand $wholeprogram $parameter $add $log 2>&1 &
 pid=\$!
 #add job to $jobfile
-line="\$HOSTNAME \$pid $program $jobtype $PWD $log $batchname"
+line="$job_id \$HOSTNAME \$pid $program $jobtype $PWD $log $batchname"
 echo \$line >> $jobfile
 wait \$pid
 result=\$?
@@ -166,7 +169,7 @@ fi
 
 check_jobs(){
 check_log
-for ((i=1;i<=$(wc -l <$jobfile);i++)); do
+for i in "$(awk '{print $1}' $jobfile)"; do
    check_job $i
 done
 }
@@ -174,8 +177,8 @@ done
 check_job(){
 check_log
 job_exist $1
-host=$(awk "(NR==$1){print \$1}" $jobfile)
-pid=$(awk "(NR==$1){print \$2}" $jobfile)
+host=$(awk "(NR==$1){print \$2}" $jobfile)
+pid=$(awk "(NR==$1){print \$3}" $jobfile)
 if ssh $host "ps -A" | grep -q "$pid"; then
    [[ "$quiet" = "yes" ]] || echo Job $1: $pid on $host found
    exit 0
@@ -237,7 +240,7 @@ fi
 }
 
 job_exist() {
-if [ $1 -gt $(wc -l < $jobfile) ]; then
+if [ -z "$(awk "(\$1==$1){print \$0}" $jobfile)" ]; then
    [[ "$quiet" = "yes" ]] || echo Job $1 not found !
    exit 1
 fi
@@ -247,9 +250,9 @@ kill_job() {
 check_log
 number="$1"
 job_exist $number
-host=$(awk "(NR==$number){print \$1}" $jobfile)
-pid=$(awk "(NR==$number){print \$2}" $jobfile)
-batchname=$(awk "(NR==$number){print \$7}" $jobfile)
+host=$(awk "(\$1==$number){print \$2}" $jobfile)
+pid=$(awk "(\$1==$number){print \$3}" $jobfile)
+batchname=$(awk "(\$1==$number){print \$8}" $jobfile)
 echo $host $pid
 if [ "$host" = "$HOSTNAME" ]; then
    pgid=$(ps -aj | awk "(\$1==$pid){print \$2}")
@@ -277,15 +280,14 @@ rm_job() {
 check_log
 number="$1"
 job_exist $number
-batchname=$(awk "(NR==$number){print \$7}" $jobfile)
-path=$(awk "(NR==$number){print \$3}" $jobfile)
-path=${path%/*}
+batchname=$(awk "(\$1==$number){print \$8}" $jobfile)
+path=$(awk "(\$1==$number){print \$6}" $jobfile)
 if [ -f $path/$batchname ]; then
    rm -i $path/$batchname
 else
    echo batchfile \"$batchname\"  of Job $number not found
 fi
-sed -i "${number}d" $jobfile
+sed -i "/^$number/d" $jobfile
 echo Job $number removed from jobfile
 }
 
@@ -353,16 +355,16 @@ eoh
 
 show_jobs() {
 check_log
-echo running jobs \(NR HOSTNAME pid progname jobtype PWD logfile batchfile\)
-cat -n $jobfile
+echo running jobs \(JOB_ID HOSTNAME pid progname jobtype PWD logfile batchfile\)
+cat $jobfile
 }
 
 show_logfile() {
 check_log
 number="$1"
 job_exist $number
-path=$(sed -n "${number}p" $jobfile | awk '{print $5}')
-logfile=$(sed -n "${number}p" $jobfile | awk '{print $6}')
+path=$(awk "(\$1==$number){print \$6}" $jobfile)
+logfile=$(awk "(\$1==$number){print \$7}" $jobfile)
 #add path if logfile does not contain /
 if [ -n "${logfile/*\/*}" ]; then
    logfile="${path}/$logfile"
@@ -391,6 +393,17 @@ if [ "$quiet" = "no" ]; then
 fi
 }
 
+unique_number() {
+if [ -f "$uni_num_file" ]; then
+   read <$uni_num_file
+   number=$REPLY
+else
+   number=1
+fi
+((number++))
+echo $number > $uni_num_file
+echo $number
+}
 ################################################
 ############## Main Program ####################
 ################################################
@@ -557,4 +570,3 @@ if [ "$excute" = "yes" ]; then
 else
  echo nohup nice -$nice $sshhost $PWD/$batchname
 fi
-#fs md5sum 1a0252eb73b3b36cbbdba82463ea7a81
