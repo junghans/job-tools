@@ -24,8 +24,9 @@
 #version 3.3.0 23.09.08 -- autogenerate of startbatch name
 #version 3.4.0 26.09.08 -- added killjob option
 #version 3.4.1 27.09.08 -- bug with number
-#version 3.4.1 06.10.08 -- added --progname, --check_job and --finish
+#version 3.4.1 06.10.08 -- added --progname, --checkjob and --finish
 #version 3.5.0 06.10.08 -- added unique job_id
+#version 3.5.1 06.10.08 -- faster --checkjob
 
 
 ##########################################
@@ -179,7 +180,13 @@ check_log
 job_exist $1
 host=$(awk "(NR==$1){print \$2}" $jobfile)
 pid=$(awk "(NR==$1){print \$3}" $jobfile)
-if ssh $host "ps -A" | grep -q "$pid"; then
+if [ "$host" = "$HOSTNAME" ]; then
+   message=$(ssh $host "ps -A")
+else
+   message=$(ps -A)
+fi
+[[ $? -eq 0 ]] || exit 1
+if [ -n "$(echo -e "$message" | awk "($pid==\$1){print \$0;exit;}")" ]; then
    [[ "$quiet" = "yes" ]] || echo Job $1: $pid on $host found
    exit 0
 else
@@ -336,12 +343,12 @@ REMOTE OPTIONS:
 
 JOBS OPTIONS:
     --showjobs        Show running job (start by ${0##*/})
-    --showlog  NUMBER Show logfile for running job with number NUMBER
-    --taillog  NUMBER same as --showlog but tail and follow
-    --checkjob NUMBER Check if a job still exist
+    --showlog  JOB_ID Show logfile for running job with number JOB_ID
+    --taillog  JOB_ID same as --showlog but tail and follow
+    --checkjob JOB_ID Check if a job still exist
     --checkjobs       Check if all jobs still exist
-    --killjob NUMBER  Kill job with NUMBER
-    --rmjob   NUMBER  Remove job with NUMBER from jobfile
+    --killjob JOB_ID  Kill job with JOB_ID
+    --rmjob   JOB_ID  Remove job with JOB_ID from jobfile
                       (useful after crash)
 
 COMMON OPTIONS:
