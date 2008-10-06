@@ -1,6 +1,0 @@
-#! /bin/bash
-
-echo -------------------
-echo You mean cvsth !!!!
-echo -------------------
-ssh -X cvsth $*
