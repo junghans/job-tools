@@ -1,6 +1,6 @@
 #! /bin/bash 
 
-if [ "$1" == "help" ]; then
+if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
    echo Usage:
    echo "${0##*/}         -- show all jobs"
    echo "${0##*/} all     -- show all jobs"
@@ -25,8 +25,8 @@ if [ "$1" == "local" ]; then
 fi
 
 if [ "$show_local" == "yes" ]; then
-   local_msg=$(start --showjobs)
-   if [ -n "$(echo "$local_msg" | sed '1d')" ]; then
+   local_msg=$(lstart --showjobs)
+   if [ -n "$(echo "$local_msg")" ]; then
       echo LOCAL JOBS
       echo "$local_msg"
       echo
