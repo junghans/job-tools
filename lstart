@@ -28,6 +28,7 @@
 #version 3.5.0 06.10.08 -- added unique job_id
 #version 3.5.1 06.10.08 -- faster --checkjob
 #version 4.0.0 07.10.08 -- consitency with qstart
+#version 4.0.1 07.10.08 -- better --showjobs
 
 
 ##########################################
@@ -50,7 +51,7 @@ run='yes'
 lines='100'
 add='>'
 quiet='no'
-jobfile="$HOME/runingjobs"
+jobfile="$HOME/.runingjobs"
 nice="19"
 mpitype="LAM"
 progname=""
@@ -373,6 +374,7 @@ eoh
 
 show_jobs() {
 check_log
+[[ -n "$(sed '/^$/d' $jobfile)" ]] || exit 0
 echo running jobs \(JOB_ID HOSTNAME pid progname jobtype PWD logfile batchfile\)
 cat $jobfile
 }
