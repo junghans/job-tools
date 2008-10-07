@@ -7,8 +7,8 @@ Content:
 
 all        - a script to run a command everywhere 
 findhost   - find hostname matching a pattern
-start      - a local "queueing" system, start jobs somewhere,
-             get a mail when they are finished
+lstart     - a local "queueing" system, start jobs somewhere,
+             get a mail when they are finished, noce nohup, ...
 qstart     - run a command on the thop cluster
 mpilist    - find a host which is free
 clean_thop - remove stuff from the thop scratch space
@@ -76,7 +76,7 @@ hosts/pckr88
 findhost
 qstart
 clean_thop
-start
+lstart
 mpilist
 sshscript
 wer
