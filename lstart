@@ -27,6 +27,7 @@
 #version 3.4.1 06.10.08 -- added --progname, --checkjob and --finish
 #version 3.5.0 06.10.08 -- added unique job_id
 #version 3.5.1 06.10.08 -- faster --checkjob
+#version 4.0.0 07.10.08 -- consitency with qstart
 
 
 ##########################################
@@ -36,18 +37,16 @@
 usage="Usage: ${0##*/} [OPTIONS] PROGRAM [PROGRAM-OPTIONS]"
 #mail=$USER
 mail="$USER@mpip-mainz.mpg.de"
-sendmail='yes'
-attachment='yes'
 mpinp="1"
 hostlist=""
 batchname=""
-batchname_template="startbatch.XXXX"
+name="l"
 common_hostlist="liste.mpi"
 mpilist="mpilist"
 findbest='no'
 host=''
 checkexist='yes'
-excute='yes'
+run='yes'
 lines='100'
 add='>'
 quiet='no'
@@ -57,6 +56,9 @@ mpitype="LAM"
 progname=""
 finish_file=""
 uni_num_file="$HOME/.start_unimum"
+template="_XXXXX"
+auto="no"
+time="no"
 
 ##########################################
 ################# Functions ##############
@@ -66,9 +68,18 @@ bulid_batchfile() {
 #Building ./$batchname
 if [ -z "$batchname" ]; then
    if [ -n $(type -p mktemp) ]; then
-      batchname=$(mktemp $batchname_template)
+      batchname=$(mktemp $name${template}) || { echo mktemp could not generate file >&2; exit 1; }
    else
-      batchname=${batchname_template%%.*}
+      echo No mktemp found >&2
+      batchname=$name
+   fi
+fi
+#Define log
+if [ -z "$logfile" ]; then
+   if [ "$batchname" = "/dev/stdout" ]; then
+      logfile="log_$name"
+   else
+      logfile="log_$batchname"
    fi
 fi
 cat > $batchname << eof
@@ -80,43 +91,33 @@ if [ $mpinp -gt 1 ] && [ "$mpitype" == "LAM" ]; then
    echo "lamboot" >> $batchname
 fi
 job_id=$(unique_number)
+[[ "$time" = "yes" ]] && echo date >> $batchname
 cat >> $batchname << eof
-nohup nice -$nice $mpicommand $wholeprogram $parameter $add $log 2>&1 &
+nohup nice -$nice $mpicommand $wholeprogram $parameter $add $logfile 2>&1 &
 pid=\$!
 #add job to $jobfile
-line="$job_id \$HOSTNAME \$pid $program $jobtype $PWD $log $batchname"
+line="$job_id \$HOSTNAME \$pid $program $jobtype $PWD $logfile $batchname"
 echo \$line >> $jobfile
 wait \$pid
 result=\$?
 eof
 
-if [ "$sendmail" = "yes" ]; then
-   if [ "$attachment" = "yes" ]; then
-      echo "attachments=\"-a $log\"" >> $batchname
-   else
-      echo "attachments=\"\"" >> $batchname
-   fi
+if [ -n "$mail" ]; then
    cat >> $batchname << eof
-
-#if attachment is too big
-if [ -n "\$(ls -hs $log | grep -e "^[0-9.]*M")" ]; then
-   attachments=""
-fi
 
 #mailstuff
 if [ \$result -eq 0 ]; then
-  tail -$lines $log | mail -s 'START: $program finished ($log)' \$attachments $mail
+  tail -$lines $logfile | mail -s 'LSTART: $program finished ($logfile)' $mail
 else
-  tail -$lines $log | mail -s 'START: $program aborted ($log)' \$attachments $mail
+  tail -$lines $logfile | mail -s 'LSTART: $program aborted ($logfile)' $mail
 fi
 eof
 fi
 
-cat >> $batchname << eof
-#remove job from $jobfile
-sed -i "\\|^\$line\\$|d" $jobfile
-rm -f ./$batchname
-eof
+echo \#remove job from $jobfile >> $batchname
+echo "sed -i \"\\|^\$line\\$|d\" $jobfile" >> $batchname
+[[ "$batchname" = "/dev/stdout" ]] || echo rm -f ./$batchname >> $batchname
+[[ "$time" = "yes" ]] && echo date >> $batchname
 [[ -z "$finish_file" ]] || echo "[[ \$result -eq 0 ]] && touch $finish_file" >> $batchname
 }
 
@@ -304,51 +305,61 @@ Make startbatch for PROGRAM and run it !
 It send you and email and add in to '$jobfile'
 $usage
 
+to do: print
+
 START OPTIONS:
-    --batchname FILE Change name of batchfile
-                      default: uses mktemp with template $batchname_template
--g, --progname NAME   Change name of the progname 
-                      (to have useful entry $jobfile or use pipes)
-                      default: first non-option argument
--p, --priority NUMBER Change nice factor
-                      default: '$nice'
--l, --logfile FILE    Changes the name of the logfile,
-                      default: 'logPROGRAM'
--a, --add             add output to the logfile
-                      default: create new logfile (overwrite)
+    --name NAME       Change progname of script
+                      Default: $name
+    --batch NAME      Change name of batch file
+                      Default: \$(mktemp ${name}$template)
+                      (Argument is NAME+TEMPLATE)
+-l, --log FILE        Changes the name of the logfile,
+                      default: log_"batchname"
+    --template TEXT   Change template for mktemp
+                      Default: $template
+-a, --auto            Use first program name as template
+-n, --notemplate      Same as --template ""
 -m, --mail NAME       send mail to NAME
                       default: '$mail'
--n, --nomail          will not use mail function (ignores -m)
+-x, --nomail          will not use mail function (ignores -m)
 -f, --finish NAME     Create a file NAME when succesfully finished
-    --noattach        will not send the logfile as attachments
+                      Usefull with --checkjob and "[[ -f NAME ]] || exit 1"
+-t, --time            Adds a date command before and after the command
+-p, --print           Only print the batchscript (implies --norun)
+    --norun           build batchfile, but do not run it
+
+    --add             add output to the logfile
+                      default: create new logfile (overwrite)
+-c, --priority NUMBER Change nice factor
+                      default: '$nice'
+    --noexist         do not check if program exist and is excutable
     --lines           change number of last lines of the logfile in the mail
                       default: '$lines'
-    --noexist         do not check if program exist and is excutable
-    --noexecute       build batchfile, but do not run it
 
 MPI OPTIONS:
-    --mpinp #CPUS     start mpi job with #CPUS
-                      (ignores -r, -b, uses '$mpilist')
-                      will not work with LAMMPI only with MPICH4
-    --hostlist FILE   name of the machinefile for mpirun
-                      (ignored when no --mpinp given)
-    --mpitype NAME    change the standard mpi implentation (CH4 or LAM possible)
-                      default: '$mpitype'
+-N                     start mpi job with N CPUS
+                       Default: $mpinp
+                       (ignores -r, -b, uses '$mpilist')
+    --hostlist FILE    name of the machinefile for mpirun
+                       (ignored when no --mpinp given)
+    --mpitype[CH4|LAM] change the standard mpi implentation
+                       default: '$mpitype'
 
 REMOTE OPTIONS:
 -r, --runat HOST      run on HOST instead of localhost
                       (ignores -b)
--b, --best            run Program on the maschine with the 
+    --best            run Program on the maschine with the 
                       lowest load (uses '$mpilist')
 
 JOBS OPTIONS:
     --showjobs        Show running job (start by ${0##*/})
+    --checkjob JOB_ID Check if a job still exist (useful with --finish)
+                      "while ${0##*/} -q --checkjob JOB_ID; do :; done"
     --showlog  JOB_ID Show logfile for running job with number JOB_ID
     --taillog  JOB_ID same as --showlog but tail and follow
-    --checkjob JOB_ID Check if a job still exist
+    --killjob  JOB_ID Kill job with JOB_ID
     --checkjobs       Check if all jobs still exist
-    --killjob JOB_ID  Kill job with JOB_ID
-    --rmjob   JOB_ID  Remove job with JOB_ID from jobfile
+    --rmjob    JOB_ID Remove job with JOB_ID from jobfile
                       (useful after crash)
 
 COMMON OPTIONS:
@@ -377,7 +388,7 @@ if [ -n "${logfile/*\/*}" ]; then
    logfile="${path}/$logfile"
 fi
 if [ ! -r "$logfile" ]; then
-   echo Logfile \($loffile\) not readable or not found!
+   echo Logfile \($logfile\) not readable or not found!
    exit 1
 else
    $2 $logfile
@@ -387,7 +398,7 @@ fi
 start_message() {
 #Print Starting Message:
 if [ "$quiet" = "no" ]; then
-   echo Starting: \'$program\' $type with logfile \'$log\'
+   echo Starting: \'$program\' $type with logfile \'$logfile\'
    if [ -n "$progname" ]; then
       echo           and realname \'$wholeprogram\'
    fi
@@ -414,6 +425,7 @@ echo $number
 ################################################
 ############## Main Program ####################
 ################################################
+shopt -s extglob
 
 while [ "${1#-}" != "$1" ]; do
   if [ "${1#--}" = "$1" ] && [ -n "${1:2}" ]; then
@@ -424,25 +436,37 @@ while [ "${1#-}" != "$1" ]; do
     fi
  fi
  case $1 in
-  -l | --logfile)
-   log="$2"
+  -p | --print )
+   batchname="/dev/stdout"
+   run="no"
+   shift;;
+  --log)
+   logfile="$2"
    shift 2;;
-  -g | --progname)
+  --name)
    progname="$2"
    shift 2;;
-  -a | --add)
+   --template )
+   template="$2"
+   shift 2;;
+   -n | --notemplate )
+   template=""
+   shift ;;
+   -a | --auto )
+   auto="yes"
+   shift ;;
+  --add)
    add='>>'
+   shift ;;
+   -t | --time )
+   time="yes"
    shift ;;
   -q | --quiet)
    quiet='yes'
    shift ;;
-  --mpinp)
-   mpinp="$2"
-   if [ -n "${mpinp//[0-9]}" ] || [ $mpinp -le 1 ]; then
-     echo argument after --mpinp should be a number greater than 1
-     exit 1
-   fi
-   shift 2 ;;
+  -[0-9])
+   mpinp="${1#-}"
+   shift 1 ;;
   --hostlist)
    hostlist="$2"
    if [ ! -r "$hostlist" ]; then
@@ -459,11 +483,8 @@ while [ "${1#-}" != "$1" ]; do
   -b | --best)
    findbest='yes'
    shift ;;
-  -n | --nomail)
-   sendmail='no'
-   shift ;;
-  --noattach)
-   attachment='no'
+  -x | --nomail)
+   mail=''
    shift ;;
   -m | --mail)
    mail="$2"
@@ -471,7 +492,7 @@ while [ "${1#-}" != "$1" ]; do
   --batchname)
    batchname="$2"
    shift 2 ;;
-  -p | --priority)
+  -c | --priority)
    nice="$2";
    number_check "$nice" "--priority"
    if [ $nice -lt 0 ] || [ $nice -gt 19 ]; then
@@ -490,8 +511,8 @@ while [ "${1#-}" != "$1" ]; do
   --noexist)
    checkexist='no'
    shift ;;
-  --noexecute)
-   excute='no'
+  --norun)
+   run='no'
    shift ;;
   --checkjobs)
    check_jobs
@@ -534,7 +555,7 @@ while [ "${1#-}" != "$1" ]; do
    showhelp
    exit 0;;
   *)
-   echo Erro: Unknown option \'$1\'
+   echo Error: Unknown option \'$1\'
    exit 1;;
  esac
 done
@@ -551,6 +572,8 @@ fi
 program=$1
 shift
 
+[[ $auto = "yes" ]] && template=$program
+
 #define parameters
 parameter="$*"
 
@@ -560,19 +583,16 @@ build_sshhost
 
 check_exist
 
-#Define log
-if [ -z "$log" ]; then
- log="log$program"
-fi
-
 bulid_batchfile
 
-chmod 700 ./$batchname
 
-start_message
+ if [ "$batchname" != "/dev/stdout" ]; then
+   chmod 700 ./$batchname
+   start_message
+fi
 
 #Start or just print command
-if [ "$excute" = "yes" ]; then
+if [ "$run" = "yes" ]; then
  nohup nice -$nice $sshhost $PWD/$batchname &> /dev/null &
 else
  echo nohup nice -$nice $sshhost $PWD/$batchname

@@ -7,8 +7,10 @@
 #version 0.4.1 ,02.10.08 -- bugs fix in exit code
 #version 0.4.2 ,02.10.08 -- added --queueinfo
 #version 0.4.3 ,05.10.08 -- bug in checkjob with zero msg
+#version 0.5.0 ,07.10.08 -- consitency with start
 
 #defaults
+usage="${0##*/} [OPTIONS] COMMAND [options]"
 qsubmit="qsubmit"
 mpirun="yes"
 mpicmd="/opt/lam/bin/mpirun"
@@ -22,13 +24,14 @@ name="q"
 quiet="no"
 auto="no"
 run="yes"
-batch=""
+batchname=""
 logfile=""
 finish_file=""
 time="no"
 scratch_dir="/usr/scratch"
 scratch="no"
 template="_XXXXX"
+mail="$USER@mpip-mainz.mpg.de"
 
 check_job() {
 message=$(ssh $runhost "export SGE_ROOT=/opt/SGE;$qstat -u $USER")
@@ -89,7 +92,7 @@ A script to start a job on the cluster.
 It builds a very simple qsub script (see -p options) and
 run it.
 
-${0##*/} [OPTIONS] COMMAND [options]
+$usage
 
 SCRIPT OPTIONS:
     --name NAME      Change global name of script
@@ -97,40 +100,46 @@ SCRIPT OPTIONS:
     --batch NAME     Change name of the qsub script
                      Default:  \$(mktemp ${name}$template)
                      (Argument is NAME+TEMPLATE)
-    --log NAME       Change name of the output file
+-l, --log NAME       Change name of the output file
                      Default: log_"batchname"
--a, --auto           Automatic filename from the first argument
     --template TEXT  Change template for mktemp
                      Default: $template
+-a, --auto           Use first program name as template
 -n, --notemplate     Same as --template ""
--t, --time           Adds a date command before and after the command
--N                   Number of cpus
-                     Default: $ncpus
+-m, --mail NAME       send mail to NAME
+                      default: '$mail'
+-x, --nomail          will not use mail function (ignores -m)
 -f, --finish NAME    Create a file NAME when succesfully finished
-                     Useful if you wait for result:
-                     "while true; do [[ -f NAME ]] && break;done"
+                     Usefull with --checkjob and "[[ -f NAME ]] || exit 1"
+-t, --time           Adds a date command before and after the command
+-p, --print          Only print the qsub script (implies --norun)
+    --norun          Do NOT run the qsub script in the end
+
     --scratch        Use scratch on "$scratch_dir/\$USER/" (EXPERIMENTAL)
     --needed FILES   Give the files needed to be copy to the scratch dir to
                      run, remember to use quotes ("file1 file2 file3" or "\$(ls *.d)")
                      (implies --scratch)
+
+MPI OPTIONS:
+-N                   Number of cpus (also determines the queue)
+                     Default: $ncpus
     --nompirun       Do NOT add mpirun automatically to the command line for ncpus > 0
 
-RUN OPTIONS:
-    --norun          Do NOT run the qsub script in the end
--p, --print          Only print the qsub script (implies --norun)
+
+JOBS OPTIONS:
+    --showjobs        Show jobs running (on $runhost)
+    --checkjob JOB_ID Return true if job is still running (useful with --follow)
+                      "while ${0##*/} -q --checkjob JOB_ID; do :; done"
+    --showlog  JOB_ID Show logfile for running job with number JOB_ID
+    --taillog  JOB_ID Same as --showlog but tail and follow
+    --killjob  JOB_ID Kill job with NUMBER
+    --pkill PATTERN   Kill all jobs matching a pattern
+    --queueinfo NR    Show info about some queue [1|2|8]
+
+COMMON OPTIONS:
 -q, --quiet          Be quiet
 -v, --version        Prints version
 -h, --help           Show this help message
-
-JOBS OPTIONS:
-    --showjobs       Show jobs running (on $runhost)
-    --queueinfo NR   Show info about some queue [1|2|8]
-    --checkjob JOB_ID Return true if job is still running
-                     useful; "while qstart -q --checkjob 53478; do :; done"
-    --showlog JOB_ID Show logfile for running job with number JOB_ID
-    --taillog JOB_ID same as --showlog but tail and follow
-    --killjob JOB_ID Kill job with NUMBER
-    --pkill PATTERN  Kill all jobs matching a pattern
 
 The usage of the scratch space is still experimental!!!
 You may add the files to copy there with --needed.
@@ -159,7 +168,9 @@ path=$(echo -e "$message" | awk '/^cwd/{ print $2}')
 logfile=$(echo -e "$message" | awk '/^stdout_path_list:/{ print $2}')
 $2 $path/$logfile
 }
-
+################################################
+############## Main Program ####################
+################################################
 shopt -s extglob
 
 while [ "${1#-}" != "$1" ]; do
@@ -175,14 +186,17 @@ while [ "${1#-}" != "$1" ]; do
    ncpus=${1#-}
    shift;;
   -p | --print )
-   batch="/dev/stdout"
+   batchname="/dev/stdout"
    run="no"
    shift;;
   -q | --quiet )
    quiet="yes"
    shift;;
+   -l | --log )
+   logfile="$2"
+   shift 2;;
    --batch )
-   batch="$2"
+   batchname="$2"
    shift 2;;
    --name )
    name="$2"
@@ -199,9 +213,6 @@ while [ "${1#-}" != "$1" ]; do
    -n | --notemplate )
    template=""
    shift ;;
-   --template )
-   template="$2"
-   shift 2;;
    --scratch )
    scratch="yes"
    shift ;;
@@ -212,6 +223,12 @@ while [ "${1#-}" != "$1" ]; do
    -t | --time )
    time="yes"
    shift ;;
+   -x | --nomail)
+   mail=''
+   shift ;;
+   -m | --mail)
+   mail="$2"
+   shift 2 ;;
    --nompirun )
    mpirun="no"
    shift ;;
@@ -254,11 +271,13 @@ while [ "${1#-}" != "$1" ]; do
 done
 
 if [ -z "$1" ]; then
-   $0 --help
-   exit 1
+  echo Missing program name
+  echo $usage
+  echo help with --help
+  exit 1
 fi
 
-[[ $auto = "yes" ]] && name=$1
+[[ $auto = "yes" ]] && template=$1
 
 if [ "$mpirun" = "no" ] || [ $ncpus -eq 1 ]; then
    cmdline="$*"
@@ -266,47 +285,53 @@ else
    cmdline="$mpicmd -np $ncpus $*"
 fi
 
-if [ -z "$batch" ]; then
+if [ -z "$batchname" ]; then
    if [ -n $(type -p mktemp) ]; then
-      batch=$(mktemp ${name}${template}) || { echo mktemp could not generate file >&2; exit 1; }
+      batchname=$(mktemp ${name}${template}) || { echo mktemp could not generate file >&2; exit 1; }
    else
       echo No mktemp found >&2
-      batch=$name
+      batchname=$name
    fi
 fi
 
 if [ -z "$logfile" ]; then
-   if [ "$batch" = "/dev/stdout" ]; then
+   if [ "$batchname" = "/dev/stdout" ]; then
       logfile="log_$name"
    else
-      logfile="log_$batch"
+      logfile="log_$batchname"
    fi
 fi
 
-if [ "$quiet" = "no" ] && [ "$batch" != "/dev/stdout" ]; then
-   echo qsubscript: $batch
+if [ "$quiet" = "no" ] && [ "$batchname" != "/dev/stdout" ]; then
+   echo qsubscript: $batchname
    echo logfile: $logfile
 fi
 
-echo \#! /bin/bash >> $batch
+echo \#! /bin/bash >> $batchname
 if [ $ncpus -eq 1 ]; then
-   echo \#$ -q all.q >> $batch
+   echo \#$ -q all.q >> $batchname
 elif [ $ncpus -eq 2 ]; then
-   echo \#$ -q dual.q >> $batch
-   echo \#$ -pe lammpi2cores 2 >> $batch
+   echo \#$ -q dual.q >> $batchname
+   echo \#$ -pe lammpi2cores 2 >> $batchname
 elif [ $ncpus -eq 8 ]; then
-   echo \#$ -q octal.q >> $batch
-   echo \#$ -pe lammpi8cores 8 >> $batch
+   echo \#$ -q octal.q >> $batchname
+   echo \#$ -pe lammpi8cores 8 >> $batchname
 else
    echo Number of cpus unsupported >&2
-   [[ "$batch" = "/dev/stdout" ]] || rm $batch
+   [[ "$batchname" = "/dev/stdout" ]] || rm $batchname
    exit 1
 fi
 
-cat <<EOF >>$batch
+if [ -z "$mail" ]; then
+   echo \#$ -m n >> $batchname
+else
+   echo \#$ -m e >> $batchname
+   echo \#$ -M $mail >> $batchname
+fi
+
+cat <<EOF >>$batchname
 #$ -cwd
 #$ -j y
-#$ -m n
 #$ -o $logfile
 
 source ~/.bashrc
@@ -316,8 +341,8 @@ echo I am job \$JOB_ID on \$HOSTNAME
 EOF
 
 if [ "$scratch" = "yes" ]; then
-   [[ "$time" = "yes" ]] && echo date >> $batch
-   cat <<EOF >>$batch
+   [[ "$time" = "yes" ]] && echo date >> $batchname
+   cat <<EOF >>$batchname
 olddir=\$PWD
 echo Copy needed files:
 echo $filelist
@@ -331,14 +356,14 @@ cd \$newdir
 EOF
 fi
 
-echo echo Starting simulation >> $batch
-[[ "$time" = "yes" ]] && echo date >> $batch
-echo $cmdline >> $batch
-echo result=\$? >> $batch
+echo echo Starting simulation >> $batchname
+[[ "$time" = "yes" ]] && echo date >> $batchname
+echo $cmdline >> $batchname
+echo result=\$? >> $batchname
 
 if [ "$scratch" = "yes" ]; then
-   [[ "$time" = "yes" ]] && echo date >> $batch
-   cat <<EOF >>$batch
+   [[ "$time" = "yes" ]] && echo date >> $batchname
+   cat <<EOF >>$batchname
 echo Copy back files:
 ls
 cp -u * \$olddir
@@ -347,12 +372,12 @@ echo Removing scratch dir
 [[ \$result -eq 0 ]] && rm -fr \$newdir
 EOF
 fi
-[[ "$time" = "yes" ]] && echo date >> $batch
-[[ -z "$finish_file" ]] || echo "[[ \$result -eq 0 ]] && touch $finish_file" >> $batch
+[[ "$time" = "yes" ]] && echo date >> $batchname
+[[ -z "$finish_file" ]] || echo "[[ \$result -eq 0 ]] && touch $finish_file" >> $batchname
 
 if [ "$run" = "yes" ]; then
-   ssh $runhost "export SGE_ROOT=/opt/SGE;cd $PWD;$qsub $batch"
+   ssh $runhost "export SGE_ROOT=/opt/SGE;cd $PWD;$qsub $batchname"
    [[ $? -eq 0 ]] || { echo Failed >&2; exit 1; }
 else
-   echo "ssh $runhost \"export SGE_ROOT=/opt/SGE;cd $PWD;$qsub $batch\""
+   echo "ssh $runhost \"export SGE_ROOT=/opt/SGE;cd $PWD;$qsub $batchname\""
 fi
