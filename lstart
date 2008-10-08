@@ -34,6 +34,7 @@
 #version 3.6.4 08.10.08 -- bug in short opts
 #version 3.6.5 08.10.08 -- bug in show_jobs with empty lines 
 #version 3.6.6 08.10.08 -- added --header
+#version 3.6.7 08.10.08 -- added --show_job
 
 
 ##########################################
@@ -188,8 +189,8 @@ done
 check_job(){
 check_log
 job_exist $1
-host=$(awk "(NR==$1){print \$2}" $jobfile)
-pid=$(awk "(NR==$1){print \$3}" $jobfile)
+host=$(awk "(\$1==$1){print \$2}" $jobfile)
+pid=$(awk "(\$1==$1){print \$3}" $jobfile)
 if [ "$host" = "$HOSTNAME" ]; then
    message=$(ssh $host "ps -A")
 else
@@ -300,7 +301,7 @@ job_exist $number
 batchname=$(awk "(\$1==$number){print \$8}" $jobfile)
 path=$(awk "(\$1==$number){print \$6}" $jobfile)
 if [ -f $path/$batchname ]; then
-   rm -i $path/$batchname
+   rm $path/$batchname
 else
    echo batchfile \"$batchname\"  of Job $number not found
 fi
