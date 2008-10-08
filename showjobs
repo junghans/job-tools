@@ -1,0 +1,149 @@
+#! /bin/bash
+
+#(C) 2008 C. Junghans
+# junghans@mpip-mainz.mpg.de
+
+#version 0.1  08.10.08 -- initial version
+
+usage="Usage: ${0##*/} list"
+quiet="no"
+statuslist="$HOME/.showjobs"
+show="yes"
+
+add_start () {
+   check_start $1
+   echo $1 >> $statuslist
+   echo $1 added from $statuslist
+}
+
+check_statusfile () {
+if [ ! -f "$statuslist" ]; then
+   echo No status list \($statuslist\) found >&2
+   echo Use --add to add tasks >&2
+   exit 1
+fi
+}
+
+check_start () {
+if [ -z "$(type -p $1)" ]; then
+   echo $1 not found >&2
+   echo use ${0##*/} --rm $1 >&2
+   exit 1
+fi
+}
+
+number_check(){
+number="$1"
+option="$2"
+if [ -z "$number" ] || [ -n "${number//[0-9]}" ]; then
+   echo argument after $option should be a number
+   exit 1
+fi
+}
+
+rm_start () {
+   [[ -z "$1" ]] && { echo Error --rm need an NAME >&2; exit 1; }
+   sed -i "/^$1\$/d" $statuslist
+   echo $1 removed from $statuslist
+}
+
+
+show_help () {
+  cat << eof
+This will show the status of start script in
+the status list ($statuslist)
+$usage
+OPTIONS:
+-l, --list          Show list of possible commands
+-s, --show NUMBER   Show status of NUMBER from --list
+    --add  CMD      Add CMD to status list
+    --rm   CMD      Rm CMD to status list
+-q, --quiet         Be a little bit quiet
+-h, --help          Show this help
+-v, --version       Show version
+    --hg            Show last log message for hg (or cvs)
+
+Examples:  ${0##*/} --add lstart --add qstart
+           ${0##*/} -s 1
+
+Send bugs and comment to junghans@mpip-mainz.mpg.de
+eof
+}
+
+show_list () {
+   check_statusfile
+   allstarts=$(sed '/^$/d;/^#/d;' $statuslist)
+   let i=1
+   for start in $allstarts; do
+      check_start $start
+      echo -n "$i $start -- "
+      $start --header
+      ((i++))
+   done
+}
+
+show_start () {
+   check_statusfile
+   allstarts=$(sed '/^$/d;/^#/d;' $statuslist)
+   [[ -z "$allstarts" ]] && { echo "No task, use --add to add tasks"; exit 0; }
+   let i=1
+   for start in $allstarts; do
+      if [ "$1" = "all" ] || [ $i -eq $1 ]; then
+         check_start $start
+         $start --header
+         $start --showjobs
+         echo
+      fi
+      ((i++))
+   done
+}
+
+while [ "${1#-}" != "$1" ]; do
+ if [ "${1#--}" = "$1" ] && [ -n "${1:2}" ]; then
+    #short opt with arguments here: s
+    if [ "${1#-[s]}" != "${1}" ]; then
+       set -- "${1:0:2}" "${1:2}" "${@:2}"
+    else
+       set -- "${1:0:2}" "-${1:2}" "${@:2}"
+    fi
+ fi
+ case $1 in 
+   -q | --quiet)
+    quiet="yes"
+    shift ;;
+   -h | --help)
+    show_help
+    exit 0;;
+   -l | --list)
+    show_list
+    exit 0;;
+   --rm)
+    rm_start "$2"
+    show="no"
+    shift 2;;
+   --add)
+    add_start "$2"
+    show="no"
+    shift 2;;
+   -s | --show)
+    number_check "$2" "--show"
+    show_start $2
+    exit 0;;
+   --hg)
+    echo "${0##*/}: $(sed -ne 's/^#version.* -- \(.*$\)/\1/p' $0 | sed -n '$p')"
+    exit 0;;
+   -v | --version)
+    echo "${0##*/}, $(sed -ne 's/^#\(version.*\) -- .*$/\1/p' $0 | sed -n '$p') by C. Junghans"
+    exit 0;;
+  *)
+   echo Unknown option \'$1\' 
+   exit 1;;
+ esac
+done
+
+if [ "$show" = "yes" ]; then
+   echo Showing all
+   echo
+   show_start "all"
+fi
+
