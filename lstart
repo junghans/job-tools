@@ -30,6 +30,7 @@
 #version 4.0.0 07.10.08 -- consitency with qstart
 #version 4.0.1 07.10.08 -- better --showjobs
 #version 4.0.2 08.10.08 -- notemplate is not emptytemplate
+#version 4.0.3 08.10.08 -- bug in --name
 
 
 ##########################################
@@ -86,7 +87,7 @@ if [ -z "$logfile" ]; then
 fi
 cat > $batchname << eof
 #! /bin/bash
-#run $program
+#run $progname
 cd $PWD
 eof
 if [ $mpinp -gt 1 ] && [ "$mpitype" == "LAM" ]; then
@@ -98,7 +99,7 @@ cat >> $batchname << eof
 nohup nice -$nice $mpicommand $wholeprogram $parameter $add $logfile 2>&1 &
 pid=\$!
 #add job to $jobfile
-line="$job_id \$HOSTNAME \$pid $program $jobtype $PWD $logfile $batchname"
+line="$job_id \$HOSTNAME \$pid $progname $jobtype $PWD $logfile $batchname"
 echo \$line >> $jobfile
 wait \$pid
 result=\$?
@@ -109,9 +110,9 @@ if [ -n "$mail" ]; then
 
 #mailstuff
 if [ \$result -eq 0 ]; then
-  tail -$lines $logfile | mail -s 'LSTART: $program finished ($logfile)' $mail
+  tail -$lines $logfile | mail -s 'LSTART: $progname finished ($logfile)' $mail
 else
-  tail -$lines $logfile | mail -s 'LSTART: $program aborted ($logfile)' $mail
+  tail -$lines $logfile | mail -s 'LSTART: $progname aborted ($logfile)' $mail
 fi
 eof
 fi
@@ -121,6 +122,16 @@ echo "sed -i \"\\|^\$line\\$|d\" $jobfile" >> $batchname
 [[ "$batchname" = "/dev/stdout" ]] || echo rm -f ./$batchname >> $batchname
 [[ "$time" = "yes" ]] && echo date >> $batchname
 [[ -z "$finish_file" ]] || echo "[[ \$result -eq 0 ]] && touch $finish_file" >> $batchname
+}
+
+build_progname() {
+if [ -z "$progname" ]; then
+   #strip down name to get useful name
+   #remove spaces and option at the end
+   progname=${program%% *}
+   #remove dir at the beginning
+   progname=${program##*/}
+fi
 }
 
 build_sshhost() {
@@ -161,13 +172,6 @@ if [ "$checkexist" = "yes" ]; then
    fi
 else
    wholeprogram=$program
-fi
-
-if [ -z "$progname" ]; then
-   #strip down name to get useful name
-   program=${program##*/}
-else
-   program="$progname"
 fi
 }
 
@@ -310,7 +314,7 @@ $usage
 to do: print
 
 START OPTIONS:
--n, --name NAME       Change progname of script
+-n, --name NAME       Change global name of script
                       Default: $name
     --batch NAME      Change name of batch file
                       Default: \$(mktemp ${name}$template)
@@ -319,17 +323,18 @@ START OPTIONS:
                       default: log_"batchname"
     --template TEXT   Change template for mktemp
                       Default: $template
--a, --auto            Use first program name as template
+-a, --auto            Use first argument as global name 
 -e, --emptytemplate   Same as --template ""
 -m, --mail NAME       send mail to NAME
                       default: '$mail'
--x, --nomail          will not use mail function (ignores -m)
+-x, --nomail          will not use mail function
 -f, --finish NAME     Create a file NAME when succesfully finished
                       Usefull with --checkjob and "[[ -f NAME ]] || exit 1"
 -t, --time            Adds a date command before and after the command
 -p, --print           Only print the batchscript (implies --norun)
     --norun           build batchfile, but do not run it
 
+-g, --progname NAME   Change program name in jobfile (useful when having pipes)
     --add             add output to the logfile
                       default: create new logfile (overwrite)
 -c, --priority NUMBER Change nice factor
@@ -401,15 +406,13 @@ fi
 start_message() {
 #Print Starting Message:
 if [ "$quiet" = "no" ]; then
-   echo Starting: \'$program\' $type with logfile \'$logfile\'
-   if [ -n "$progname" ]; then
-      echo           and realname \'$wholeprogram\'
-   fi
+   echo "Starting: \"$progname\" ($wholeprogram)"
+   echo "           with logfile \"$logfile\""
    if [ -n "$parameter" ]; then
-      echo           and parameter \'$parameter\'
+      echo "           and parameter \"$parameter\""
    fi
    if [ -n "$host" ]; then
-      echo           on maschine \'$host\'
+      echo "          on maschine \"$host\""
    fi
 fi
 }
@@ -447,6 +450,9 @@ while [ "${1#-}" != "$1" ]; do
    logfile="$2"
    shift 2;;
   -n | --name)
+   name="$2"
+   shift 2;;
+  -g | --progname)
    progname="$2"
    shift 2;;
    --template )
@@ -585,6 +591,8 @@ check_for_mpi
 build_sshhost
 
 check_exist
+
+build_progname
 
 bulid_batchfile
 
