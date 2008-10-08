@@ -10,6 +10,7 @@
 #version 0.5.0 ,07.10.08 -- consitency with start
 #version 0.5.1 ,08.10.08 -- notemplate is now emptytemplate
 #version 0.5.2 ,08.10.08 -- corrected help
+#version 0.5.3 ,08.10.08 -- bug in short opts
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -177,7 +178,7 @@ shopt -s extglob
 
 while [ "${1#-}" != "$1" ]; do
   if [ "${1#--}" = "$1" ] && [ -n "${1:2}" ]; then
-    if [ "${1#-[f]}" != "${1}" ]; then
+    if [ "${1#-[nlmf]}" != "${1}" ]; then
        set -- "${1:0:2}" "${1:2}" "${@:2}"
     else
        set -- "${1:0:2}" "-${1:2}" "${@:2}"
