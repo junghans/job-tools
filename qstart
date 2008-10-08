@@ -11,6 +11,7 @@
 #version 0.5.1 ,08.10.08 -- notemplate is now emptytemplate
 #version 0.5.2 ,08.10.08 -- corrected help
 #version 0.5.3 ,08.10.08 -- bug in short opts
+#version 0.5.4 ,08.10.08 -- added --header
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -35,6 +36,7 @@ scratch_dir="/usr/scratch"
 scratch="no"
 template="_XXXXX"
 mail="$USER@mpip-mainz.mpg.de"
+header="JOBS ON L.C.A.R.S. (thopXX)"
 
 check_job() {
 message=$(ssh $runhost "export SGE_ROOT=/opt/SGE;$qstat -u $USER")
@@ -138,6 +140,7 @@ JOBS OPTIONS:
     --killjob  JOB_ID Kill job with NUMBER
     --pkill PATTERN   Kill all jobs matching a pattern
     --queueinfo NR    Show info about some queue [1|2|8]
+    --header          Show info header
 
 COMMON OPTIONS:
 -q, --quiet          Be quiet
@@ -229,6 +232,9 @@ while [ "${1#-}" != "$1" ]; do
    -x | --nomail)
    mail=''
    shift ;;
+  --header)
+   echo $header
+   exit 0;;
    -m | --mail)
    mail="$2"
    shift 2 ;;
