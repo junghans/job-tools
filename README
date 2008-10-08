@@ -12,7 +12,7 @@ lstart     - a local "queueing" system, start jobs somewhere,
 qstart     - run a command on the thop cluster
 mpilist    - find a host which is free
 clean_thop - remove stuff from the thop scratch space
-myjobs     - summarize running jobs
+showjobs   - summarize running jobs
 wer        - who is logged in ? (like rwho)
 werist     - infomation about a user
 sshscript  - remember working dir after ssh.
@@ -81,5 +81,5 @@ mpilist
 sshscript
 wer
 werist
-myjobs
+showjobs
 END_FILES_TO_INSTALL
