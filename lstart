@@ -29,6 +29,7 @@
 #version 3.5.1 06.10.08 -- faster --checkjob
 #version 4.0.0 07.10.08 -- consitency with qstart
 #version 4.0.1 07.10.08 -- better --showjobs
+#version 4.0.2 08.10.08 -- better notemplate is not emptytemplate
 
 
 ##########################################
@@ -309,7 +310,7 @@ $usage
 to do: print
 
 START OPTIONS:
-    --name NAME       Change progname of script
+-n, --name NAME       Change progname of script
                       Default: $name
     --batch NAME      Change name of batch file
                       Default: \$(mktemp ${name}$template)
@@ -319,7 +320,7 @@ START OPTIONS:
     --template TEXT   Change template for mktemp
                       Default: $template
 -a, --auto            Use first program name as template
--n, --notemplate      Same as --template ""
+-e, --emptytemplate   Same as --template ""
 -m, --mail NAME       send mail to NAME
                       default: '$mail'
 -x, --nomail          will not use mail function (ignores -m)
@@ -445,13 +446,13 @@ while [ "${1#-}" != "$1" ]; do
   --log)
    logfile="$2"
    shift 2;;
-  --name)
+  -n | --name)
    progname="$2"
    shift 2;;
    --template )
    template="$2"
    shift 2;;
-   -n | --notemplate )
+   -e | --emptytemplate )
    template=""
    shift ;;
    -a | --auto )
