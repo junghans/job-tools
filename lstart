@@ -33,6 +33,7 @@
 #version 3.6.3 08.10.08 -- bug in --name
 #version 3.6.4 08.10.08 -- bug in short opts
 #version 3.6.5 08.10.08 -- bug in show_jobs with empty lines 
+#version 3.6.6 08.10.08 -- added --header
 
 
 ##########################################
@@ -64,7 +65,7 @@ uni_num_file="$HOME/.start_unimum"
 template="_XXXXX"
 auto="no"
 time="no"
-
+header="LOCAL JOBS"
 ##########################################
 ################# Functions ##############
 ##########################################
@@ -370,6 +371,7 @@ JOBS OPTIONS:
     --checkjobs       Check if all jobs still exist
     --rmjob    JOB_ID Remove job with JOB_ID from jobfile
                       (useful after crash)
+    --header          Show info header
 
 COMMON OPTIONS:
 -q, --quiet           be quiet
@@ -383,7 +385,7 @@ eoh
 show_jobs() {
 check_log
 [[ -n "$(sed '/^$/d' $jobfile)" ]] || exit 0
-echo running jobs \(JOB_ID HOSTNAME pid progname jobtype PWD logfile batchfile\)
+echo JOB_ID HOSTNAME pid progname jobtype PWD logfile batchfile
 sed '/^$/d' $jobfile
 }
 
@@ -540,6 +542,9 @@ while [ "${1#-}" != "$1" ]; do
    number="$2"
    number_check "$number" "--showlog"
    show_logfile "$number" "cat"
+   exit 0;;
+  --header)
+   echo $header
    exit 0;;
   --taillog)
    number="$2"
