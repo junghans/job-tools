@@ -8,6 +8,7 @@
 #version 0.4.2 ,02.10.08 -- added --queueinfo
 #version 0.4.3 ,05.10.08 -- bug in checkjob with zero msg
 #version 0.5.0 ,07.10.08 -- consitency with start
+#version 0.5.1 ,08.10.08 -- notemplate is now emptytemplate
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -95,7 +96,7 @@ run it.
 $usage
 
 SCRIPT OPTIONS:
-    --name NAME      Change global name of script
+-n, --name NAME      Change global name of script
                      Default: $name
     --batch NAME     Change name of the qsub script
                      Default:  \$(mktemp ${name}$template)
@@ -105,10 +106,10 @@ SCRIPT OPTIONS:
     --template TEXT  Change template for mktemp
                      Default: $template
 -a, --auto           Use first program name as template
--n, --notemplate     Same as --template ""
--m, --mail NAME       send mail to NAME
-                      default: '$mail'
--x, --nomail          will not use mail function (ignores -m)
+-e, --emptytemplate  Same as --template ""
+-m, --mail NAME      send mail to NAME
+                     default: '$mail'
+-x, --nomail         will not use mail function (ignores -m)
 -f, --finish NAME    Create a file NAME when succesfully finished
                      Usefull with --checkjob and "[[ -f NAME ]] || exit 1"
 -t, --time           Adds a date command before and after the command
@@ -198,7 +199,7 @@ while [ "${1#-}" != "$1" ]; do
    --batch )
    batchname="$2"
    shift 2;;
-   --name )
+   -n | --name )
    name="$2"
    shift 2;;
    -f | --finish )
@@ -210,7 +211,7 @@ while [ "${1#-}" != "$1" ]; do
    --norun )
    run="no"
    shift ;;
-   -n | --notemplate )
+   -e | --emptytemplate )
    template=""
    shift ;;
    --scratch )
@@ -260,6 +261,9 @@ while [ "${1#-}" != "$1" ]; do
    exit 0;;
   -v | --version)
    echo ${0##*/}, $(sed -ne 's/^#\(version.*\) -- .*$/\1/p' $0 | sed -n '$p') by C. Junghans
+   exit 0;;
+  --hg)
+   echo "${0##*/}: $(sed -ne 's/^#version.* -- \(.*\)$/\1/p' $0 | sed -n '$p')"
    exit 0;;
   -h | --help)
    showhelp
