@@ -3,7 +3,8 @@
 #(C) 2008 C. Junghans
 # junghans@mpip-mainz.mpg.de
 
-#version 0.1  08.10.08 -- initial version
+#version 0.1   08.10.08 -- initial version
+#version 0.1.1 08.10.08 -- do not show empty status
 
 usage="Usage: ${0##*/} list"
 quiet="no"
@@ -86,16 +87,22 @@ show_start () {
    check_statusfile
    allstarts=$(sed '/^$/d;/^#/d;' $statuslist)
    [[ -z "$allstarts" ]] && { echo "No task, use --add to add tasks"; exit 0; }
+   have_showed="no"
    let i=1
    for start in $allstarts; do
       if [ "$1" = "all" ] || [ $i -eq $1 ]; then
          check_start $start
-         $start --header
-         $start --showjobs
-         echo
+         message=$($start --showjobs)
+         if [ -n "$message" ]; then
+            $start --header
+            echo "$message"
+            echo
+            have_showed="yes"
+         fi
       fi
       ((i++))
    done
+   [[ "$have_showed" = "no" ]] && echo "No running jobs"
 }
 
 while [ "${1#-}" != "$1" ]; do
