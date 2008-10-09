@@ -35,6 +35,7 @@
 #version 3.6.5 08.10.08 -- bug in show_jobs with empty lines 
 #version 3.6.6 08.10.08 -- added --header
 #version 3.6.7 08.10.08 -- added --show_job
+#version 3.6.8 08.10.08 -- bug in --checkjob for remote
 
 
 ##########################################
@@ -192,9 +193,9 @@ job_exist $1
 host=$(awk "(\$1==$1){print \$2}" $jobfile)
 pid=$(awk "(\$1==$1){print \$3}" $jobfile)
 if [ "$host" = "$HOSTNAME" ]; then
-   message=$(ssh $host "ps -A")
-else
    message=$(ps -A)
+else
+   message=$(ssh $host "ps -A")
 fi
 [[ $? -eq 0 ]] || exit 1
 if [ -n "$(echo -e "$message" | awk "($pid==\$1){print \$0;exit;}")" ]; then
