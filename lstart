@@ -36,6 +36,7 @@
 #version 3.6.6 08.10.08 -- added --header
 #version 3.6.7 08.10.08 -- added --show_job
 #version 3.6.8 08.10.08 -- bug in --checkjob for remote
+#version 3.6.9 13.10.08 -- bug in --checkjobs
 
 
 ##########################################
@@ -182,8 +183,8 @@ fi
 
 check_jobs(){
 check_log
-for i in "$(awk '{print $1}' $jobfile)"; do
-   check_job $i
+for i in $(awk '{print $1}' $jobfile); do
+   $0 --checkjob $i
 done
 }
 
