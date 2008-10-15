@@ -1,13 +1,30 @@
 #! /bin/bash
 
+quiet="no"
+if [ "$1" = "-q" ]; then
+   quiet="yes"
+   shift
+fi
+
+echo="echo"
+if [ "$1" = "-n" ]; then
+   echo="$echo -n"
+   shift
+fi
+
 if [ -z "$1" ]; then
-   echo Usage: ${0##*/} command
-   echo 
-   echo Examples: ${0##*/} uptime
+cat <<EOF
+Usage: ${0##*/} [-q] [-n] command
+   
+-q = quiet
+-n = no newline
+
+Examples: ${0##*/} uptime
+EOF
    exit 1
 fi
 
 for i in $(findhost pckr);do
-   echo $i	
+   [[ "$quiet" = "yes" ]] || $echo "$i "
    $i $*
 done
