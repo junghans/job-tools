@@ -37,6 +37,7 @@
 #version 3.6.7 08.10.08 -- added --show_job
 #version 3.6.8 08.10.08 -- bug in --checkjob for remote
 #version 3.6.9 13.10.08 -- bug in --checkjobs
+#version 3.7.0 15.10.08 -- bug in kill_job
 
 
 ##########################################
@@ -273,14 +274,13 @@ job_exist $number
 host=$(awk "(\$1==$number){print \$2}" $jobfile)
 pid=$(awk "(\$1==$number){print \$3}" $jobfile)
 batchname=$(awk "(\$1==$number){print \$8}" $jobfile)
-echo $host $pid
 if [ "$host" = "$HOSTNAME" ]; then
-   pgid=$(ps -aj | awk "(\$1==$pid){print \$2}")
-   pids=$(ps -aj | awk "(\$2==$pgid){print \$0}" | awk "!/$batchname/{print \$1}")
+   pgid=$(ps -Aj | awk "(\$1==$pid){print \$2}")
+   pids=$(ps -Aj | awk "(\$2==$pgid){print \$0}" | awk "!/$batchname/{printf '%i ',\$1}")
    kill $pids
 else
-   pgid=$(ssh $host "ps -aj" | awk "(\$1==$pid){print \$2}")
-   pids=$(ssh $host "ps -aj" | awk "(\$2==$pgid){print \$0}" | awk "!/$batchname/{print \$1}")
+   pgid=$(ssh $host "ps -Aj" | awk "(\$1==$pid){print \$2}")
+   pids=$(ssh $host "ps -Aj" | awk "(\$2==$pgid){print \$0}" | awk "!/$batchname/{printf '%i ',\$1}")
    ssh $host "kill $pids"
 fi
 [[ $? -ne 0 ]] && echo Error at killing job $number && exit 1
