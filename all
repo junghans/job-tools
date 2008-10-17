@@ -26,5 +26,5 @@ fi
 
 for i in $(findhost pckr);do
    [[ "$quiet" = "yes" ]] || $echo "$i "
-   $i $*
+   $i "$*"
 done
