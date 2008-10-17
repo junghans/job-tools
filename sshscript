@@ -1,6 +1,6 @@
 #! /bin/bash
 
 echo $PWD > ~/.mypath
-echo $HOSTNAME:$HNAME > ~/.myhost
-ssh -C -X ${0##*/} $*
+#echo $HOSTNAME:$HNAME > ~/.myhost
+ssh -C -X ${0##*/} "$*"
 
