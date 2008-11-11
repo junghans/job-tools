@@ -12,6 +12,7 @@
 #version 0.5.2 ,08.10.08 -- corrected help
 #version 0.5.3 ,08.10.08 -- bug in short opts
 #version 0.5.4 ,08.10.08 -- added --header
+#version 0.5.5 ,11.11.08 -- fixed bug with --print
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -391,5 +392,5 @@ if [ "$run" = "yes" ]; then
    ssh $runhost "export SGE_ROOT=/opt/SGE;cd $PWD;$qsub $batchname"
    [[ $? -eq 0 ]] || { echo Failed >&2; exit 1; }
 else
-   echo "ssh $runhost \"export SGE_ROOT=/opt/SGE;cd $PWD;$qsub $batchname\""
+   [[ "$batchname" != "/dev/stdout" ]] && echo "ssh $runhost \"export SGE_ROOT=/opt/SGE;cd $PWD;$qsub $batchname\""
 fi
