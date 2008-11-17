@@ -14,6 +14,7 @@
 #version 0.5.4 ,08.10.08 -- added --header
 #version 0.5.5 ,11.11.08 -- fixed bug with --print
 #version 0.5.6 ,17.11.08 -- added --pcheck
+#version 0.5.7 ,17.11.08 -- added --resub
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -39,6 +40,7 @@ scratch="no"
 template="_XXXXX"
 mail="$USER@mpip-mainz.mpg.de"
 header="JOBS ON L.C.A.R.S. (thopXX)"
+resub=""
 
 check_job() {
 message=$(ssh $runhost "export SGE_ROOT=/opt/SGE;$qstat -u $USER")
@@ -134,6 +136,7 @@ SCRIPT OPTIONS:
 -t, --time           Adds a date command before and after the command
 -p, --print          Only print the qsub script (implies --norun)
     --norun          Do NOT run the qsub script in the end
+-r, --resub FILE     Resub the script if exit status was 0 and FILE not exist
 
     --scratch        Use scratch on "$scratch_dir/\$USER/" (EXPERIMENTAL)
     --needed FILES   Give the files needed to be copy to the scratch dir to
@@ -250,6 +253,9 @@ while [ "${1#-}" != "$1" ]; do
    -x | --nomail)
    mail=''
    shift ;;
+   -r | --resub)
+   resub="$2"
+   shift 2;;
   --header)
    echo $header
    exit 0;;
@@ -406,6 +412,7 @@ echo Removing scratch dir
 EOF
 fi
 [[ "$time" = "yes" ]] && echo date >> $batchname
+[[ -z "$resub" ]] || echo "[[ \$result -eq 0 ]] && [[ ! -f $resub ]] && { $qsub $PWD/$batchname; exit 0;}" >> $batchname
 [[ -z "$finish_file" ]] || echo "[[ \$result -eq 0 ]] && touch $finish_file" >> $batchname
 
 if [ "$run" = "yes" ]; then
