@@ -13,6 +13,7 @@
 #version 0.5.3 ,08.10.08 -- bug in short opts
 #version 0.5.4 ,08.10.08 -- added --header
 #version 0.5.5 ,11.11.08 -- fixed bug with --print
+#version 0.5.6 ,17.11.08 -- added --pcheck
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -47,6 +48,19 @@ if [ -z "$(echo -e "$message" | awk "(\$1==$1){print \$0}")" ]; then
    exit 1
 else
    [[ "$quiet" = "yes" ]] || echo Job \"$1\" on $runhost found
+   exit 0
+fi
+}
+
+pcheck_job() {
+[ -n "$1" ] || { echo No pattern given >/dev/stdout; exit 1; }
+message=$(ssh $runhost "export SGE_ROOT=/opt/SGE;$qstat -u $USER")
+[[ $? -eq 0 ]] || exit 1
+if [ -z "$(echo -e "$message" | awk "(\$3 ~ /$1/){print \$0}")" ]; then
+   [[ "$quiet" = "yes" ]] || echo Job with name matching \"$1\" on $runhost NOT found
+   exit 1
+else
+   [[ "$quiet" = "yes" ]] || echo Job with name matching \"$1\" on $runhost found
    exit 0
 fi
 }
@@ -129,13 +143,16 @@ SCRIPT OPTIONS:
 MPI OPTIONS:
 -N                   Number of cpus (also determines the queue)
                      Default: $ncpus
-    --nompirun       Do NOT add mpirun automatically to the command line for ncpus > 0
+    --nompirun       Do NOT add mpirun automatically to the command line for ncpus > 1
 
 
 JOBS OPTIONS:
     --showjobs        Show jobs running (on $runhost)
-    --checkjob JOB_ID Return true if job is still running (useful with --follow)
+    --checkjob JOB_ID Return true if job is still running (useful with --f)
                       "while ${0##*/} -q --checkjob JOB_ID; do :; done"
+    --pcheck PATTERN  Return true if job is still running (useful with --f)
+                      PATTERN is search in the name column
+                      "while ${0##*/} -q --checkjob NAME; do :; done"
     --showlog  JOB_ID Show logfile for running job with number JOB_ID
     --taillog  JOB_ID Same as --showlog but tail and follow
     --killjob  JOB_ID Kill job with NUMBER
@@ -255,6 +272,9 @@ while [ "${1#-}" != "$1" ]; do
    --checkjob )
    number_check "$2" "--checkjob"
    check_job $2
+   exit 0;;
+   --pcheck )
+   pcheck_job $2
    exit 0;;
    --queueinfo )
    number_check "$2" "--queueinfo"
