@@ -15,6 +15,7 @@
 #version 0.5.5 ,11.11.08 -- fixed bug with --print
 #version 0.5.6 ,17.11.08 -- added --pcheck
 #version 0.5.7 ,17.11.08 -- added --resub
+#version 0.5.8 ,21.11.08 -- added resub example
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -178,6 +179,7 @@ Examples:
    ${0##*/} --name gromacs mdrun -v
    ${0##*/} -8 --needed traj.trr mdrun
    ${0##*/} "echo -e \"SOL\nSOL\" | g_rdf -b 100 -n index.ndx"
+   ${0##*/} -8 --resub confout.gro  mdrun -append -cpi state.cpt -maxh 36
 
 Send comments and bugs to: junghans@mpip-mainz.mpg.de
 eoh
