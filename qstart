@@ -16,6 +16,7 @@
 #version 0.5.6 ,17.11.08 -- added --pcheck
 #version 0.5.7 ,17.11.08 -- added --resub
 #version 0.5.8 ,21.11.08 -- added resub example
+#version 0.5.9 ,02.12.08 -- remove perl depend, cut patterns to 8 chars
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -59,11 +60,11 @@ pcheck_job() {
 [ -n "$1" ] || { echo No pattern given >/dev/stdout; exit 1; }
 message=$(ssh $runhost "export SGE_ROOT=/opt/SGE;$qstat -u $USER")
 [[ $? -eq 0 ]] || exit 1
-if [ -z "$(echo -e "$message" | awk "(\$3 ~ /$1/){print \$0}")" ]; then
-   [[ "$quiet" = "yes" ]] || echo Job with name matching \"$1\" on $runhost NOT found
+if [ -z "$(echo -e "$message" | awk "(\$3 ~ /${1:0:8}/){print \$0}")" ]; then
+   [[ "$quiet" = "yes" ]] || echo Job with name matching \"${1:0:8}\" on $runhost NOT found
    exit 1
 else
-   [[ "$quiet" = "yes" ]] || echo Job with name matching \"$1\" on $runhost found
+   [[ "$quiet" = "yes" ]] || echo Job with name matching \"${1:0:8}\" on $runhost found
    exit 0
 fi
 }
@@ -80,7 +81,7 @@ if [ -z "$1" ]; then
 fi
 message=$(ssh $runhost "export SGE_ROOT=/opt/SGE;$qstat -u $USER")
 [[ $? -eq 0 ]] || exit 1
-for job_id in $(echo -e "$message" | perl -nae "print \"\$F[0]\n\" if (\$F[2] =~ /$1/)"); do
+for job_id in $(echo -e "$message" | awk "(\$3 ~ /${1:0:8}/){print \$1}"); do
    echo $0 --killjob $job_id
 done
 }
