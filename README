@@ -25,6 +25,7 @@ thopXX     - links to sshscript
 FILES_TO_INSTALL
 all
 hosts/thop02
+hosts/thop57
 hosts/thop60
 hosts/thop76
 hosts/pckr95
