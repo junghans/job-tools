@@ -17,6 +17,7 @@
 #version 0.5.7 ,17.11.08 -- added --resub
 #version 0.5.8 ,21.11.08 -- added resub example
 #version 0.5.9 ,02.12.08 -- remove perl depend, cut patterns to 8 chars
+#version 0.5.10,26.02.09 -- added some note and --shell option
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -43,6 +44,7 @@ template="_XXXXX"
 mail="$USER@mpip-mainz.mpg.de"
 header="JOBS ON L.C.A.R.S. (thopXX)"
 resub=""
+myshell="bash"
 
 check_job() {
 message=$(ssh $runhost "export SGE_ROOT=/opt/SGE;$qstat -u $USER")
@@ -139,7 +141,8 @@ SCRIPT OPTIONS:
 -p, --print          Only print the qsub script (implies --norun)
     --norun          Do NOT run the qsub script in the end
 -r, --resub FILE     Resub the script if exit status was 0 and FILE not exist
-
+    --shell NAME     Change the shell to use, script will sources ~/.XXXrc   
+                     Default: $myshell
     --scratch        Use scratch on "$scratch_dir/\$USER/" (EXPERIMENTAL)
     --needed FILES   Give the files needed to be copy to the scratch dir to
                      run, remember to use quotes ("file1 file2 file3" or "\$(ls *.d)")
@@ -170,9 +173,12 @@ COMMON OPTIONS:
 -v, --version        Prints version
 -h, --help           Show this help message
 
+Note for scratch space :
+------------------------
 The usage of the scratch space is still experimental!!!
-You may add the files to copy there with --needed.
-Give full path of binary or add itself to --needed and use "./".
+You may add the files to copy there with --needed 
+or use "--needed '*'" if your job has a separate dir.
+Also give the full path of binary or add itself to --needed and use "./".
 
 Examples:
    ${0##*/} -8p sleep 30
@@ -181,6 +187,7 @@ Examples:
    ${0##*/} -8 --needed traj.trr mdrun
    ${0##*/} "echo -e \"SOL\nSOL\" | g_rdf -b 100 -n index.ndx"
    ${0##*/} -8 --resub confout.gro  mdrun -append -cpi state.cpt -maxh 36
+            (Note: -cpi is smart, the first time mdrun will start normal!)         
 
 Send comments and bugs to: junghans@mpip-mainz.mpg.de
 eoh
@@ -264,6 +271,14 @@ while [ "${1#-}" != "$1" ]; do
    exit 0;;
    -m | --mail)
    mail="$2"
+   shift 2 ;;
+   --shell)
+   myshell="$2"
+   if [ "$myshell" != "bash" ]; then
+      echo We only support bash so far \;-\)
+      echo Try \"vim $0\" and look for \"TCSH\" 
+      exit 1
+   fi
    shift 2 ;;
    --nompirun )
    mpirun="no"
@@ -349,6 +364,8 @@ if [ "$quiet" = "no" ] && [ "$batchname" != "/dev/stdout" ]; then
    echo logfile: $logfile
 fi
 
+#TCSH changes go here
+#first line, source, for loop?
 echo \#! /bin/bash >> $batchname
 if [ $ncpus -eq 1 ]; then
    echo \#$ -q all.q >> $batchname
