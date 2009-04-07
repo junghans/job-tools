@@ -19,6 +19,7 @@
 #version 0.5.9 ,02.12.08 -- remove perl depend, cut patterns to 8 chars
 #version 0.5.10,26.02.09 -- added some note and --shell option
 #version 0.6.0, 02.03.09 -- --scratch should work now
+#version 0.6.1, 07.04.09 -- make it work with tcsh + bugfix in pe for 2cpus
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -45,7 +46,7 @@ template="_XXXXX"
 mail="$USER@mpip-mainz.mpg.de"
 header="JOBS ON L.C.A.R.S. (thopXX)"
 resub=""
-myshell="bash"
+myshell="none"
 
 check_job() {
 message=$(ssh $runhost "export SGE_ROOT=/opt/SGE;$qstat -u $USER")
@@ -280,10 +281,12 @@ while [ "${1#-}" != "$1" ]; do
    shift 2 ;;
    --shell)
    myshell="$2"
-   if [ "$myshell" != "bash" ]; then
-      echo We only support bash so far \;-\)
-      echo Try \"vim $0\" and look for \"TCSH\" 
-      exit 1
+   if [ "$myshell" = "none"] || [ "$myshell" = "bash" ]; then
+     :
+   else
+     echo We only support bash so far \;-\)
+     echo Try \"vim $0\" and look for \"TCSH\" 
+     exit 1
    fi
    shift 2 ;;
    --nompirun )
@@ -377,7 +380,7 @@ if [ $ncpus -eq 1 ]; then
    echo \#$ -q all.q >> $batchname
 elif [ $ncpus -eq 2 ]; then
    echo \#$ -q dual.q >> $batchname
-   echo \#$ -pe lammpi2cores 2 >> $batchname
+   echo \#$ -pe lammpi2cpu 2 >> $batchname
 elif [ $ncpus -eq 8 ]; then
    echo \#$ -q octal.q >> $batchname
    echo \#$ -pe lammpi8cores 8 >> $batchname
@@ -443,8 +446,13 @@ fi
 [[ -z "$finish_file" ]] || echo "[[ \$result -eq 0 ]] && touch $finish_file" >> $batchname
 
 if [ "$run" = "yes" ]; then
+  if [ "${SHELL##*/}" = "bash" ]; then
    ssh $runhost "export SGE_ROOT=/opt/SGE;cd $PWD;$qsub $batchname"
    [[ $? -eq 0 ]] || { echo Failed >&2; exit 1; }
+  elif [ "${SHELL##*/}" = "tcsh" ]; then
+   ssh $runhost "setenv SGE_ROOT /opt/SGE;cd $PWD;$qsub $batchname"
+   [[ $? -eq 0 ]] || { echo Failed >&2; exit 1; }
+  fi
 else
    [[ "$batchname" != "/dev/stdout" ]] && echo "ssh $runhost \"export SGE_ROOT=/opt/SGE;cd $PWD;$qsub $batchname\""
 fi
