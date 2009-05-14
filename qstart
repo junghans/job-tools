@@ -20,6 +20,8 @@
 #version 0.5.10,26.02.09 -- added some note and --shell option
 #version 0.6.0, 02.03.09 -- --scratch should work now
 #version 0.6.1, 07.04.09 -- make it work with tcsh + bugfix in pe for 2cpus
+#version 0.6.2, 14.05.09 -- added zsh support, thx to Konstantin
+#version 0.7.0, 14.05.09 -- added --wait
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -47,46 +49,57 @@ mail="$USER@mpip-mainz.mpg.de"
 header="JOBS ON L.C.A.R.S. (thopXX)"
 resub=""
 myshell="none"
+wait="no"
+sleeptime=900
+
+if [ "${SHELL##*/}" = "bash" ]  || [ "${SHELL##*/}" = "zsh" ]; then
+  sh_cmd="export SGE_ROOT=/opt/SGE"
+elif [ "${SHELL##*/}" = "tcsh" ]; then
+  sh_cmd="setenv SGE_ROOT=/opt/SGE"
+else
+  echo "Your shell ($SHELL) is not supported yet" >&2
+  sh_cmd=""
+fi
 
 check_job() {
-message=$(ssh $runhost "export SGE_ROOT=/opt/SGE;$qstat -u $USER")
+message=$(ssh $runhost "${sh_cmd};$qstat -u $USER")
 [[ $? -eq 0 ]] || exit 1
 if [ -z "$(echo -e "$message" | awk "(\$1==$1){print \$0}")" ]; then
-   [[ "$quiet" = "yes" ]] || echo Job \"$1\" on $runhost NOT found
-   exit 1
+  [[ "$quiet" = "yes" ]] || echo "Job '$1' on $runhost NOT found"
+  exit 1
 else
-   [[ "$quiet" = "yes" ]] || echo Job \"$1\" on $runhost found
-   exit 0
+  [[ "$quiet" = "yes" ]] || echo "Job '$1' on $runhost found"
+  exit 0
 fi
 }
 
 pcheck_job() {
-[ -n "$1" ] || { echo No pattern given >/dev/stdout; exit 1; }
-message=$(ssh $runhost "export SGE_ROOT=/opt/SGE;$qstat -u $USER")
+[ -n "$1" ] || { echo No pattern given >&2; exit 1; }
+message=$(ssh $runhost "${sh_cmd};$qstat -u $USER")
 [[ $? -eq 0 ]] || exit 1
 if [ -z "$(echo -e "$message" | awk "(\$3 ~ /${1:0:8}/){print \$0}")" ]; then
-   [[ "$quiet" = "yes" ]] || echo Job with name matching \"${1:0:8}\" on $runhost NOT found
-   exit 1
+  [[ "$quiet" = "yes" ]] || echo "Job with name matching '${1:0:8}' on $runhost NOT found"
+  exit 1
 else
-   [[ "$quiet" = "yes" ]] || echo Job with name matching \"${1:0:8}\" on $runhost found
-   exit 0
+  [[ "$quiet" = "yes" ]] || echo "Job with name matching '${1:0:8}' on $runhost found"
+  exit 0
 fi
 }
 
 kill_job() {
-ssh $runhost "export SGE_ROOT=/opt/SGE;$qdel $1"
+ssh $runhost "${sh_cmd};$qdel $1"
 [[ $? -eq 0 ]] || exit 1
 }
 
 pkill_job() {
 if [ -z "$1" ]; then
-   echo Expect a pattern
-   exit 1
+  echo Expect a pattern
+  exit 1
 fi
-message=$(ssh $runhost "export SGE_ROOT=/opt/SGE;$qstat -u $USER")
+message=$(ssh $runhost "${sh_cmd};$qstat -u $USER")
 [[ $? -eq 0 ]] || exit 1
 for job_id in $(echo -e "$message" | awk "(\$3 ~ /${1:0:8}/){print \$1}"); do
-   echo $0 --killjob $job_id
+  echo $0 --killjob $job_id
 done
 }
 
@@ -94,23 +107,23 @@ number_check(){
 number="$1"
 option="$2"
 if [ -z "$number" ] || [ -n "${number//[0-9]}" ]; then
-   echo argument after $option should be a number
-   exit 1
+  echo argument after $option should be a number
+  exit 1
 fi
 }
 
 queue_info() {
 if [ $1 -eq 1 ]; then
-   queue="all.q"
+  queue="all.q"
 elif [ $1 -eq 2 ]; then
-   queue="dual.q"
+  queue="dual.q"
 elif [ $1 -eq 8 ]; then
-   queue="octal.q"
+  queue="octal.q"
 else
-   echo Number of cpus unsupported >&2
-   exit 1
+  echo Number of cpus unsupported >&2
+  exit 1
 fi
-ssh $runhost "export SGE_ROOT=/opt/SGE;$qstat -q $queue"
+ssh $runhost "${sh_cmd};$qstat -q $queue"
 [[ $? -eq 0 ]] || exit 1
 }
 
@@ -143,6 +156,10 @@ SCRIPT OPTIONS:
 -p, --print          Only print the qsub script (implies --norun)
     --norun          Do NOT run the qsub script in the end
 -r, --resub FILE     Resub the script if exit status was 0 and FILE not exist
+-w, --wait           Waits for the job to finish
+                     Exit status from existence of FILE from --finish or --resub
+    --sleeptime      Changes the sleeptime for --wait
+                     Default: $sleeptime
     --shell NAME     Change the shell to use, script will sources ~/.XXXrc   
                      Default: $myshell
     --scratch        Use scratch on "$scratch_dir/\$USER/"
@@ -175,7 +192,7 @@ COMMON OPTIONS:
 -v, --version        Prints version
 -h, --help           Show this help message
 
-Note for scratch space :
+Notes for scratch space :
 ------------------------
 -The usage of the scratch space is still at the beginning of testing,
  use it with care! 
@@ -201,12 +218,12 @@ eoh
 }
 
 show_jobs() {
-ssh $runhost "export SGE_ROOT=/opt/SGE;$qstat -u $USER"
+ssh $runhost "${sh_cmd};$qstat -u $USER"
 [[ $? -eq 0 ]] || exit 1
 }
 
 show_logs() {
-message=$(ssh $runhost "export SGE_ROOT=/opt/SGE;$qstat -r -j $1")
+message=$(ssh $runhost "${sh_cmd};$qstat -r -j $1")
 [[ $? -eq 0 ]] || exit 1
 path=$(echo -e "$message" | awk '/^cwd/{ print $2}')
 logfile=$(echo -e "$message" | awk '/^stdout_path_list:/{ print $2}')
@@ -219,10 +236,10 @@ shopt -s extglob
 
 while [ "${1#-}" != "$1" ]; do
   if [ "${1#--}" = "$1" ] && [ -n "${1:2}" ]; then
-    if [ "${1#-[nlmf]}" != "${1}" ]; then
-       set -- "${1:0:2}" "${1:2}" "${@:2}"
+    if [ "${1#-[nlmfr]}" != "${1}" ]; then
+      set -- "${1:0:2}" "${1:2}" "${@:2}"
     else
-       set -- "${1:0:2}" "-${1:2}" "${@:2}"
+      set -- "${1:0:2}" "-${1:2}" "${@:2}"
     fi
  fi
  case $1 in
@@ -273,6 +290,13 @@ while [ "${1#-}" != "$1" ]; do
    -r | --resub)
    resub="$2"
    shift 2;;
+   -w | --wait)
+   wait="yes"
+   shift 1;;
+  --sleeptime)
+   number_check "$2" "--sleeptime"
+   sleeptime="$2"
+   shift 2;;
   --header)
    echo $header
    exit 0;;
@@ -285,7 +309,7 @@ while [ "${1#-}" != "$1" ]; do
      :
    else
      echo We only support bash so far \;-\)
-     echo Try \"vim $0\" and look for \"TCSH\" 
+     echo "Try 'vim $0' and look for 'TCSH'"
      exit 1
    fi
    shift 2 ;;
@@ -331,7 +355,7 @@ while [ "${1#-}" != "$1" ]; do
    showhelp
    exit 0;;
   *)
-   echo Unknown option \'$1\' >&2
+   echo "Unknown option '$1'" >&2
    exit 1;;
  esac
 done
@@ -346,55 +370,55 @@ fi
 [[ $auto = "yes" ]] && template=$1
 
 if [ "$mpirun" = "no" ] || [ $ncpus -eq 1 ]; then
-   cmdline="$*"
+  cmdline="$*"
 else
-   cmdline="$mpicmd -np $ncpus $*"
+  cmdline="$mpicmd -np $ncpus $*"
 fi
 
 if [ -z "$batchname" ]; then
-   if [ -n $(type -p mktemp) ]; then
-      batchname=$(mktemp ${name}${template}) || { echo mktemp could not generate file >&2; exit 1; }
-   else
-      echo No mktemp found >&2
-      batchname=$name
-   fi
+  if [ -n $(type -p mktemp) ]; then
+    batchname=$(mktemp ${name}${template}) || { echo mktemp could not generate file >&2; exit 1; }
+  else
+    echo No mktemp found >&2
+    batchname=$name
+  fi
 fi
 
 if [ -z "$logfile" ]; then
-   if [ "$batchname" = "/dev/stdout" ]; then
-      logfile="log_$name"
-   else
-      logfile="log_$batchname"
-   fi
+  if [ "$batchname" = "/dev/stdout" ]; then
+    logfile="log_$name"
+  else
+    logfile="log_$batchname"
+  fi
 fi
 
 if [ "$quiet" = "no" ] && [ "$batchname" != "/dev/stdout" ]; then
-   echo qsubscript: $batchname
-   echo logfile: $logfile
+  echo qsubscript: $batchname
+  echo logfile: $logfile
 fi
 
 #TCSH changes go here
 #first line, source, for loop?
 echo \#! /bin/bash >> $batchname
 if [ $ncpus -eq 1 ]; then
-   echo \#$ -q all.q >> $batchname
+  echo \#$ -q all.q >> $batchname
 elif [ $ncpus -eq 2 ]; then
-   echo \#$ -q dual.q >> $batchname
-   echo \#$ -pe lammpi2cpu 2 >> $batchname
+  echo \#$ -q dual.q >> $batchname
+  echo \#$ -pe lammpi2cpu 2 >> $batchname
 elif [ $ncpus -eq 8 ]; then
-   echo \#$ -q octal.q >> $batchname
-   echo \#$ -pe lammpi8cores 8 >> $batchname
+  echo \#$ -q octal.q >> $batchname
+  echo \#$ -pe lammpi8cores 8 >> $batchname
 else
-   echo Number of cpus unsupported >&2
-   [[ "$batchname" = "/dev/stdout" ]] || rm $batchname
-   exit 1
+  echo Number of cpus unsupported >&2
+  [[ "$batchname" = "/dev/stdout" ]] || rm $batchname
+  exit 1
 fi
 
 if [ -z "$mail" ]; then
-   echo \#$ -m n >> $batchname
+  echo \#$ -m n >> $batchname
 else
-   echo \#$ -m e >> $batchname
-   echo \#$ -M $mail >> $batchname
+  echo \#$ -m e >> $batchname
+  echo \#$ -M $mail >> $batchname
 fi
 
 cat <<EOF >>$batchname
@@ -409,15 +433,15 @@ echo I am job \$JOB_ID on \$HOSTNAME
 EOF
 
 if [ "$scratch" = "yes" ]; then
-   [[ "$time" = "yes" ]] && echo date >> $batchname
-   cat <<EOF >>$batchname
+  [[ "$time" = "yes" ]] && echo date >> $batchname
+  cat <<EOF >>$batchname
 olddir=\$PWD
 echo Copy needed files:
 echo $filelist
 newdir=$scratch_dir/\$USER/\$JOB_ID
 mkdir -p \$newdir
 for myfile in $filelist; do
-   cp \$myfile \$newdir
+  cp \$myfile \$newdir
 done
 echo finished copying files
 cd \$newdir
@@ -430,8 +454,8 @@ echo "$cmdline" >> $batchname
 echo result=\$? >> $batchname
 
 if [ "$scratch" = "yes" ]; then
-   [[ "$time" = "yes" ]] && echo date >> $batchname
-   cat <<EOF >>$batchname
+  [[ "$time" = "yes" ]] && echo date >> $batchname
+  cat <<EOF >>$batchname
 echo Copy back files:
 echo *
 cp -u * \$olddir
@@ -442,17 +466,37 @@ echo Removing scratch dir
 EOF
 fi
 [[ "$time" = "yes" ]] && echo date >> $batchname
-[[ -z "$resub" ]] || echo "[[ \$result -eq 0 ]] && [[ ! -f $resub ]] && { $qsub $PWD/$batchname; exit 0;}" >> $batchname
+if [ -n "$resub" ]; then
+  if [ "$batchname" = "/dev/stdout" ]; then
+    echo Error: Resub and print options make no sense together >&2
+    echo Error: Filename after $qsub in next line will be wrong !!! >&2
+  fi
+  echo "[[ \$result -eq 0 ]] && [[ ! -f $resub ]] && { $qsub $PWD/$batchname; exit 0; }" >> $batchname
+fi
 [[ -z "$finish_file" ]] || echo "[[ \$result -eq 0 ]] && touch $finish_file" >> $batchname
 
-if [ "$run" = "yes" ]; then
-  if [ "${SHELL##*/}" = "bash" ]  || [ "${SHELL##*/}" = "zsh" ]; then
-   ssh $runhost "export SGE_ROOT=/opt/SGE;cd $PWD;$qsub $batchname"
-   [[ $? -eq 0 ]] || { echo Failed >&2; exit 1; }
-  elif [ "${SHELL##*/}" = "tcsh" ]; then
-   ssh $runhost "setenv SGE_ROOT /opt/SGE;cd $PWD;$qsub $batchname"
-   [[ $? -eq 0 ]] || { echo Failed >&2; exit 1; }
-  fi
+if [ "$run" = "no" ]; then
+  [[ "$batchname" != "/dev/stdout" ]] && echo "ssh $runhost '${sh_cmd};cd $PWD;$qsub $batchname'"
+  exit 0
+fi
+
+if [ -n "${sh_cmd}" ]; then
+  ssh $runhost "${sh_cmd};cd $PWD;$qsub $batchname"
+  [[ $? -eq 0 ]] || { echo Submit failed >&2; exit 1; }
 else
-   [[ "$batchname" != "/dev/stdout" ]] && echo "ssh $runhost \"export SGE_ROOT=/opt/SGE;cd $PWD;$qsub $batchname\""
+  echo "Your shell ($SHELL) is not supported yet" >&2
+  echo "Logon $runhost and do:" >&2
+  echo " cd $PWD" >&2
+  echo " $qsub $batchname" >&2
+  exit 1
+fi
+
+if [ "$wait" = "yes" ]; then
+  echo Waiting for $batchname to finish
+  while $0 -q --pcheck $batchname; do
+    sleep $sleeptime;
+  done
+  [[ -n "${finish_file}" ]] && [[ ! -f "$finish_file" ]] && exit 1
+  [[ -n "${resub}" ]] && [[ ! -f "$resub" ]] && exit 1
+  exit 0
 fi
