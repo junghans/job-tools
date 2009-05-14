@@ -446,7 +446,7 @@ fi
 [[ -z "$finish_file" ]] || echo "[[ \$result -eq 0 ]] && touch $finish_file" >> $batchname
 
 if [ "$run" = "yes" ]; then
-  if [ "${SHELL##*/}" = "bash" ]; then
+  if [ "${SHELL##*/}" = "bash" ]  || [ "${SHELL##*/}" = "zsh" ]; then
    ssh $runhost "export SGE_ROOT=/opt/SGE;cd $PWD;$qsub $batchname"
    [[ $? -eq 0 ]] || { echo Failed >&2; exit 1; }
   elif [ "${SHELL##*/}" = "tcsh" ]; then
