@@ -22,11 +22,13 @@
 #version 0.6.1, 07.04.09 -- make it work with tcsh + bugfix in pe for 2cpus
 #version 0.6.2, 14.05.09 -- added zsh support, thx to Konstantin
 #version 0.7.0, 14.05.09 -- added --wait
+#version 0.7.1, 24.08.09 -- added --runat option
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
 qsubmit="qsubmit"
 mpirun="yes"
+hostname=""
 mpicmd="/opt/lam/bin/mpirun"
 sge_path="/opt/SGE/bin/lx26-amd64"
 qsub="$sge_path/qsub"
@@ -171,6 +173,7 @@ MPI OPTIONS:
 -N                   Number of cpus (also determines the queue)
                      Default: $ncpus
     --nompirun       Do NOT add mpirun automatically to the command line for ncpus > 1
+    --runat HOST     Specify the host to run yourself
 
 
 JOBS OPTIONS:
@@ -316,6 +319,9 @@ while [ "${1#-}" != "$1" ]; do
    --nompirun )
    mpirun="no"
    shift ;;
+   --runat )
+   hostname="$2"
+   shift 2;;
    --showjobs )
    show_jobs
    exit 0;;
@@ -414,6 +420,10 @@ else
   exit 1
 fi
 
+if [ -n "$hostname" ]; then
+  echo \#$ -l hostname=${hostname} >> $batchname
+fi
+  
 if [ -z "$mail" ]; then
   echo \#$ -m n >> $batchname
 else
