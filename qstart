@@ -23,6 +23,7 @@
 #version 0.6.2, 14.05.09 -- added zsh support, thx to Konstantin
 #version 0.7.0, 14.05.09 -- added --wait
 #version 0.7.1, 24.08.09 -- added --runat option
+#version 0.7.2, 24.08.09 -- --(p)checkjob will mention jobs in error state
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -69,6 +70,9 @@ message=$(ssh $runhost "${sh_cmd};$qstat -u $USER")
 if [ -z "$(echo -e "$message" | awk "(\$1==$1){print \$0}")" ]; then
   [[ "$quiet" = "yes" ]] || echo "Job '$1' on $runhost NOT found"
   exit 1
+elif [ -z "$(echo -e "$message" | awk "(\$1==$1)&&(\$5 !~ /E/){print \$0}")" ]; then
+  [[ "$quiet" = "yes" ]] || echo "Job '$1' on $runhost in error state"
+  exit 1
 else
   [[ "$quiet" = "yes" ]] || echo "Job '$1' on $runhost found"
   exit 0
@@ -81,6 +85,9 @@ message=$(ssh $runhost "${sh_cmd};$qstat -u $USER")
 [[ $? -eq 0 ]] || exit 1
 if [ -z "$(echo -e "$message" | awk "(\$3 ~ /${1:0:8}/){print \$0}")" ]; then
   [[ "$quiet" = "yes" ]] || echo "Job with name matching '${1:0:8}' on $runhost NOT found"
+  exit 1
+elif [ -z "$(echo -e "$message" | awk "(\$3 ~/${1:0:8}/)&&(\$5 !~ /E/){print \$0}")" ]; then
+  [[ "$quiet" = "yes" ]] || echo "Job with name matching '${1:0:8}' on $runhost in error state"
   exit 1
 else
   [[ "$quiet" = "yes" ]] || echo "Job with name matching '${1:0:8}' on $runhost found"
