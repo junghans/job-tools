@@ -24,6 +24,7 @@
 #version 0.7.0, 14.05.09 -- added --wait
 #version 0.7.1, 24.08.09 -- added --runat option
 #version 0.7.2, 24.08.09 -- --(p)checkjob will mention jobs in error state
+#version 0.7.3, 26.08.09 -- improved shell related stuff
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -51,7 +52,7 @@ template="_XXXXX"
 mail="$USER@mpip-mainz.mpg.de"
 header="JOBS ON L.C.A.R.S. (thopXX)"
 resub=""
-myshell="none"
+myshell="${SHELL##*/}"
 wait="no"
 sleeptime=900
 
@@ -62,6 +63,7 @@ elif [ "${SHELL##*/}" = "tcsh" ]; then
 else
   echo "Your shell ($SHELL) is not supported yet" >&2
   sh_cmd=""
+  exit 1
 fi
 
 check_job() {
@@ -443,7 +445,11 @@ cat <<EOF >>$batchname
 #$ -j y
 #$ -o $logfile
 
-source ~/.bashrc
+EOF
+
+[[ "$myshell" = "bash" ]] && echo "source ~/.bashrc" >> $batchname
+
+cat <<EOF >>$batchname
 
 cd $PWD
 echo I am job \$JOB_ID on \$HOSTNAME
