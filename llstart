@@ -1,0 +1,491 @@
+#! /bin/bash
+
+#version 0.1   ,02.09.09 -- initial version from qstart
+
+#defaults
+usage="${0##*/} [OPTIONS] COMMAND [options]"
+job_submit="llsubmit"
+job_status="llq"
+job_kill="llcancel"
+job_info="llclass"
+mpirun="yes"
+mpirun_cmd="/usr/bin/poe"
+runhost="vip"
+ncpus=32
+name="ll"
+quiet="no"
+auto="no"
+run="yes"
+batchname=""
+logfile=""
+finish_file=""
+time="no"
+template="_XXXXX"
+mail="$USER@mpip-mainz.mpg.de"
+header="JOBS ON vip"
+sim_base="sim"
+sim_dir=""
+resub=""
+myshell="${SHELL##*/}"
+wait="no"
+sleeptime=900
+
+check_job() {
+message=$(ssh $runhost "$job_status -u \$USER")
+[[ $? -eq 0 ]] || exit 1
+if [ -z "$(echo -e "$message" | awk "(\$1~/$1/){print \$0}")" ]; then
+  [[ "$quiet" = "yes" ]] || echo "Job '$1' on $runhost NOT found"
+  exit 1
+elif [ -z "$(echo -e "$message" | awk "(\$1~/$1/)&&(\$5 !~ /N[QR]/){print \$0}")" ]; then
+  [[ "$quiet" = "yes" ]] || echo "Job '$1' on $runhost in error state"
+  exit 1
+else
+  [[ "$quiet" = "yes" ]] || echo "Job '$1' on $runhost found"
+  exit 0
+fi
+}
+
+pcheck_job() {
+[ -n "$1" ] || { echo No pattern given >&2; exit 1; }
+message=$(ssh $runhost "$job_status -u \$USER | grep \$USER" )
+[[ $? -eq 0 ]] || exit 1
+found="no"
+for job_id in $(echo -e "$message" | awk '{print $1}'); do
+  jmessage=$(ssh $runhost "$job_status -l $job_id")
+  jname="$(echo -e "$jmessage" | awk '/Job Name:/{print $3}')"
+  if [[ $jname =~ $1 ]]; then
+    echo -n "$job_id matches simname $1, "
+    $0 --checkjob $job_id
+    found="yes"
+  fi
+done
+[[ "$found" = "no" ]] && echo "No job matching '$1' on $runhost found" && exit 1
+exit 0
+}
+
+kill_job() {
+ssh $runhost "${job_kill} $1"
+[[ $? -eq 0 ]] || exit 1
+}
+
+pkill_job() {
+[[ -n "$1" ]] || { echo Expect a pattern >&2; exit 1; }
+message=$(ssh $runhost "$job_status -u \$USER | grep \$USER" )
+[[ $? -eq 0 ]] || exit 1
+found="no"
+for job_id in $(echo -e "$message" | awk '{print $1}'); do
+  jmessage=$(ssh $runhost "$job_status -l $job_id")
+  jname="$(echo -e "$jmessage" | awk '/Job Name:/{print $3}')"
+  if [[ $jname =~ $1 ]]; then 
+    echo -n "$job_id matches simname $1, " 
+    $0 --killjob $job_id
+    found="yes"
+  fi
+done
+[[ "$found" = "no" ]] && echo "No job matching '$1' on $runhost found" && exit 1
+exit 0
+}
+
+number_check(){
+number="$1"
+option="$2"
+if [ -z "$number" ] || [ -n "${number//[0-9]}" ]; then
+  echo argument after $option should be a number
+  exit 1
+fi
+}
+
+cpunr_to_queuename(){
+if [ $1 -eq 32 ]; then
+  echo "small"
+elif [ $1 -eq 64 ]; then
+  echo "big"
+elif [ $1 -eq 128 ]; then
+  echo "jumbo"
+elif [ $1 -eq 256 ]; then
+  echo "dino"
+elif [ $1 -eq 512 ]; then
+  echo "monster"
+elif [ $1 -eq 1024 ]; then
+  echo "giant"
+elif [ $1 -eq 2048 ]; then
+  echo "grant"
+elif [ $1 -eq 4096 ]; then
+  echo "xxl"
+else
+  echo ""
+fi
+}
+
+queue_info() {
+queue="$(cpunr_to_queuename $1)"
+ssh $runhost "$job_info $queue"
+[[ $? -eq 0 ]] || exit 1
+}
+
+showhelp() {
+ cat << eoh
+A script to start a job on the cluster.
+It builds a very simple qsub script (see -p options) and
+run it.
+
+$usage
+
+SCRIPT OPTIONS:
+-n, --name NAME      Change global name of script
+                     Default: $name
+    --batch NAME     Change name of the qsub script
+                     Default:  \$(mktemp ${name}$template)
+                     (Argument is NAME+TEMPLATE)
+-l, --log NAME       Change name of the output file
+                     Default: log_"batchname"
+    --template TEXT  Change template for mktemp
+                     Default: $template
+-a, --auto           Use first argument as global name
+-e, --emptytemplate  Same as --template ""
+-m, --mail NAME      send mail to NAME
+                     default: '$mail'
+-x, --nomail         will not use mail function
+-f, --finish NAME    Create a file NAME when succesfully finished
+                     Usefull with --checkjob and "[[ -f NAME ]] || exit 1"
+-t, --time           Adds a date command before and after the command
+-p, --print          Only print the qsub script (implies --norun)
+    --norun          Do NOT run the qsub script in the end
+-r, --resub FILE     Resub the script if exit status was 0 and FILE not exist
+-w, --wait           Waits for the job to finish
+                     Exit status from existence of FILE from --finish or --resub
+    --sleeptime      Changes the sleeptime for --wait
+                     Default: $sleeptime
+    --simdir         Where to do the simulation
+                     Default: $sim_base
+		     So simulation will be done in \$HOME/$sim_base/\$(mktemp ${name}$template)
+    --shell NAME     Change the shell to use, script will sources ~/.XXXrc   
+                     Default: $myshell
+    --needed FILES   Give the files needed to be copy to the scratch dir to
+                     run, remember to use quotes ("file1 file2 file3" or "\$(ls *.d)")
+
+MPI OPTIONS:
+-N                   Number of cpus (also determines the queue)
+                     Default: $ncpus
+    --nompirun       Do NOT add mpirun automatically to the command line for ncpus > 1
+
+
+JOBS OPTIONS:
+    --showjobs        Show jobs running (on $runhost)
+    --checkjob JOB_ID Return true if job is still running (useful with --f)
+                      "while ${0##*/} -q --checkjob JOB_ID; do :; done"
+    --pcheck PATTERN  Return true if job is still running (useful with --f)
+                      PATTERN is search in the simname
+                      "while ${0##*/} -q --checkjob NAME; do :; done"
+    --showlog  JOB_ID Show logfile for running job with number JOB_ID
+    --taillog  JOB_ID Same as --showlog but tail and follow
+    --killjob  JOB_ID Kill job with NUMBER
+    --pkill PATTERN   Kill all jobs, which simname matches the pattern
+    --queueinfo NR    Show info about some queue [32|64|128|..|4096]
+    --header          Show info header
+
+COMMON OPTIONS:
+-q, --quiet          Be quiet
+-v, --version        Prints version
+-h, --help           Show this help message
+
+Notes for scratch space :
+------------------------
+-The usage of the scratch space is still at the beginning of testing,
+ use it with care! 
+-You may add the files to copy there with --needed or use "--needed '*'",
+ if your job has a separate dir.
+-Give the full path of binary or add itself to --needed and use "./", if
+ it is not in your PATH variable.
+-Remember to subtract the time needed to copy the files !
+
+Examples:
+   ${0##*/} -32p sleep 30
+   ${0##*/} -32p --nompirun poe sleep 30
+   ${0##*/} --name gromacs mdrun -v
+   ${0##*/} -32 --needed traj.trr mdrun
+   ${0##*/} "echo -e \"SOL\nSOL\" | g_rdf -b 100 -n index.ndx"
+   ${0##*/} -32 --resub confout.gro  mdrun -append -cpi state.cpt -maxh 36
+            (Note: -cpi is smart, the first time mdrun will start normal!)         
+   ${0##*/} -32 --needed '*' --resub confout.gro  mdrun -append -cpi state.cpt -maxh 35
+            (Note: --needed '*' needs a separate dir for the simulation!)
+
+Send comments and bugs to: junghans@mpip-mainz.mpg.de
+eoh
+}
+
+show_jobs() {
+ssh $runhost "$job_status -u \$USER"
+[[ $? -eq 0 ]] || exit 1
+}
+
+show_logs() {
+message=$(ssh $runhost "$job_status -l $1")
+[[ $? -eq 0 ]] || exit 1
+path="$(echo -e "$message" | awk '/Initial Working Dir:/{print $4}')"
+logfile="$(echo -e "$message" | awk '/Out:/{print $2}')"
+ssh $runhost "$2 ${path}/${logfile}"
+[[ $? -eq 0 ]] || exit 1
+}
+################################################
+############## Main Program ####################
+################################################
+shopt -s extglob
+
+while [ "${1#-}" != "$1" ]; do
+  if [ "${1#--}" = "$1" ] && [ -n "${1:2}" ]; then
+    if [ "${1##-[0-9]*}" != ${1} ]; then
+      rest="${1##-[0-9]*}"
+      set -- "${1%%$rest}" "-${rest}" "${@:2}"
+    elif [ "${1#-[nlmfr]}" != "${1}" ]; then
+      set -- "${1:0:2}" "${1:2}" "${@:2}"
+    else
+      set -- "${1:0:2}" "-${1:2}" "${@:2}"
+    fi
+ fi
+ case $1 in
+  -[0-9]* )
+   ncpus=${1#-}
+   shift;;
+  -p | --print )
+   batchname="/dev/stdout"
+   run="no"
+   shift;;
+  -q | --quiet )
+   quiet="yes"
+   shift;;
+   -l | --log )
+   logfile="$2"
+   shift 2;;
+   --batch )
+   batchname="$2"
+   shift 2;;
+   -n | --name )
+   name="$2"
+   shift 2;;
+   -f | --finish )
+   finish_file="$2"
+   shift 2;;
+   -a | --auto )
+   auto="yes"
+   shift ;;
+   --norun )
+   run="no"
+   shift ;;
+   -e | --emptytemplate )
+   template=""
+   shift ;;
+   --simdir )
+   sim_base="$2"
+   shift 2;;
+   --needed )
+   filelist=$2
+   scratch="yes"
+   shift 2;;
+   -t | --time )
+   time="yes"
+   shift ;;
+   -x | --nomail)
+   mail=''
+   shift ;;
+   -r | --resub)
+   resub="$2"
+   shift 2;;
+   -w | --wait)
+   wait="yes"
+   shift 1;;
+  --sleeptime)
+   number_check "$2" "--sleeptime"
+   sleeptime="$2"
+   shift 2;;
+  --header)
+   echo $header
+   exit 0;;
+   -m | --mail)
+   mail="$2"
+   shift 2 ;;
+   --shell)
+   myshell="$2"
+   if [ "$myshell" = "none"] || [ "$myshell" = "bash" ]; then
+     :
+   else
+     echo We only support bash so far \;-\)
+     exit 1
+   fi
+   shift 2 ;;
+   --nompirun )
+   mpirun="no"
+   shift ;;
+   --showjobs )
+   show_jobs
+   exit 0;;
+   --killjob )
+   kill_job $2
+   exit 0;;
+   --pkill )
+   pkill_job "$2"
+   exit 0;;
+   --checkjob )
+   check_job $2
+   exit 0;;
+   --pcheck )
+   pcheck_job $2
+   exit 0;;
+   --queueinfo )
+   number_check "$2" "--queueinfo"
+   queue_info $2
+   exit 0;;
+   --showlog )
+   show_logs "$2" "cat"
+   exit 0;;
+   --taillog )
+   show_logs "$2" "tail -f"
+   exit 0;;
+  -v | --version)
+   echo ${0##*/}, $(sed -ne 's/^#\(version.*\) -- .*$/\1/p' $0 | sed -n '$p') by C. Junghans
+   exit 0;;
+  --hg)
+   echo "${0##*/}: $(sed -ne 's/^#version.* -- \(.*\)$/\1/p' $0 | sed -n '$p')"
+   exit 0;;
+  -h | --help)
+   showhelp
+   exit 0;;
+  *)
+   echo "Unknown option '$1'" >&2
+   exit 1;;
+ esac
+done
+
+if [ -z "$1" ]; then
+  echo Missing program name
+  echo $usage
+  echo help with --help
+  exit 1
+fi
+
+[[ $auto = "yes" ]] && name=$1
+
+if [ "$mpirun" = "no" ] || [ $ncpus -eq 1 ]; then
+  cmdline="$*"
+else
+  cmdline="$mpirun_cmd $*"
+fi
+
+if [ -z "$batchname" ]; then
+  if [ -n $(type -p mktemp) ]; then
+    batchname=$(mktemp ${name}${template}) || { echo mktemp could not generate file >&2; exit 1; }
+  else
+    echo No mktemp found >&2
+    batchname=$name
+  fi
+fi
+
+if [ -z "$logfile" ]; then
+  if [ "$batchname" = "/dev/stdout" ]; then
+    logfile="log_$name"
+  else
+    logfile="log_$batchname"
+  fi
+fi
+
+if [ "$quiet" = "no" ] && [ "$batchname" != "/dev/stdout" ]; then
+  echo llsubscript: $batchname
+  echo logfile: $logfile
+fi
+
+if [ -z "${HOSTNAME/#vip*}" ]; then
+  #we are already on vip
+  sim_dir=$PWD
+else
+  sim_dir="\$HOME/$sim_base/$batchname"
+fi
+
+queue_name="$(cpunr_to_queuename $ncpus)"
+if [ -z "$queue_name" ]; then
+  echo Do not know how to handle this Number of cpus '$nrcpus' >&2
+  [[ "$batchname" = "/dev/stdout" ]] || rm $batchname
+  exit 1
+else
+  nnodes=$(($ncpus/32))
+cat <<EOF >> $batchname
+#! /bin/bash
+# @ shell = /bin/bash
+# @ wall_clock_limit= 24:00:00
+# @ job_type = parallel
+# @ node_usage= not_shared
+# @ tasks_per_node = 32
+# @ network.MPI = sn_all,not_shared,us
+# @ task_affinity = core(1)
+# @ resources = ConsumableMemory(1600 mb)
+# @ node = $nnodes
+# @ class = $queue_name
+# @ error = $logfile
+# @ output = $logfile
+# @ job_name = $name
+EOF
+fi
+  
+if [ -z "$mail" ]; then
+  echo '# @ notification = never' >> $batchname
+else
+  echo '# @ notification = complete' >> $batchname
+  echo "# @ notify_user = $mail" >> $batchname
+fi
+echo '# @ queue' >> $batchname
+[[ "$myshell" = "bash" ]] && echo "source ~/.bashrc" >> $batchname
+
+cat <<EOF >>$batchname
+
+cd $sim_dir
+echo I am job \$JOB_ID on \$HOSTNAME
+echo Starting simulation >> $batchname
+EOF
+[[ "$time" = "yes" ]] && echo date >> $batchname
+
+echo "$cmdline" >> $batchname
+echo result=\$? >> $batchname
+[[ "$time" = "yes" ]] && echo date >> $batchname
+
+if [ -n "$resub" ]; then
+  if [ "$batchname" = "/dev/stdout" ]; then
+    echo Error: Resub and print options make no sense together >&2
+    echo Error: Filename after $job_submit in next line will be wrong !!! >&2
+  fi
+  echo "[[ \$result -eq 0 ]] && [[ ! -f $resub ]] && { $job_subbmit $sim_dir/$batchname; exit 0; }" >> $batchname
+fi
+[[ -z "$finish_file" ]] || echo "[[ \$result -eq 0 ]] && touch $finish_file" >> $batchname
+
+if [ "$run" = "no" ]; then
+  [[ "$batchname" != "/dev/stdout" ]] && echo "ssh $runhost 'cd $sim_dir;$job_submit $batchname'"
+  exit 0
+fi
+
+if [ -n "${HOSTNAME/#vip*}" ]; then
+    #we are not on vip
+   if [ -z "$filelist" ]; then
+     echo "Run a simulation on vip from here with no needed files ?" >&2
+     echo "I do NOT think this make sense, do it manually!" >&2
+     echo "ssh $runhost 'cd $sim_dir;$job_submit $batchname'"
+     exit 1
+   fi
+   echo Copying needed files
+   ssh $runhost "mkdir -p \$HOME/$sim_base/$batchname"
+   [[ $? -eq 0 ]] || { echo mkdir failed >&2; exit 1; }
+   scp -r $filelist $batchname vip:./$sim_base/$batchname/
+   [[ $? -eq 0 ]] || { echo scp failed >&2; exit 1; }
+fi
+
+ssh $runhost "cd $sim_dir;$job_submit $batchname"
+[[ $? -eq 0 ]] || { echo Submit failed >&2; exit 1; }
+
+if [ "$wait" = "yes" ]; then
+  echo Waiting for $batchname to finish
+  echo fixme
+  exit 1
+  while $0 -q --pcheck $batchname; do
+    sleep $sleeptime;
+  done
+  [[ -n "${finish_file}" ]] && [[ ! -f "$finish_file" ]] && exit 1
+  [[ -n "${resub}" ]] && [[ ! -f "$resub" ]] && exit 1
+  exit 0
+fi
