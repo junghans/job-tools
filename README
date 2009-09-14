@@ -20,60 +20,11 @@ sshscript  - remember working dir after ssh.
 	     To make it work add
 	     "[[ -r ~/.mypath ]] && cd $(cat ~/.mypath) && rm -f ~/.mypath"
              to your .bashrc
-pckrXX     - links to sshscript
-thopXX     - links to sshscript
+hosts/*    - links to sshscript
 
 FILES_TO_INSTALL
 all
-hosts/thop02
-hosts/thop57
-hosts/thop60
-hosts/thop76
-hosts/pckr96
-hosts/pckr97
-hosts/pckr98
-hosts/pckr99
-hosts/pckr100
-hosts/pckr102
-hosts/pckr103
-hosts/pckr80
-hosts/pckr89
-hosts/pckr78
-hosts/pckr91
-hosts/pckr48
-hosts/pckr49
-hosts/pckr92
-hosts/pckr53
-hosts/pckr54
-hosts/pckr55
-hosts/pckr56
-hosts/pckr58
-hosts/pckr59
-hosts/pckr62
-hosts/pckr63
-hosts/pckr64
-hosts/pckr65
-hosts/pckr66
-hosts/pckr67
-hosts/pckr68
-hosts/pckr69
-hosts/pckr70
-hosts/pckr71
-hosts/pckr72
-hosts/pckr73
-hosts/pckr74
-hosts/pckr75
-hosts/pckr76
-hosts/pckr77
-hosts/pckr79
-hosts/pckr81
-hosts/pckr82
-hosts/pckr83
-hosts/pckr84
-hosts/pckr85
-hosts/pckr86
-hosts/pckr87
-hosts/pckr88
+hosts/*
 findhost
 qstart
 clean_thop
