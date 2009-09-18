@@ -99,7 +99,7 @@ fi
 }
 
 check_shell() {
-if [ "$myshell" = "none"i ] || \
+if [ "$myshell" = "none" ] || \
    [ "$myshell" = "bash" ] || \
    [ "$myshell" = "tcsh" ] || \
    [ "$myshell" = "zsh" ]; then
@@ -507,14 +507,16 @@ fi
 echo echo Starting simulation >> $batchname
 [[ "$time" = "yes" ]] && echo date >> $batchname
 if [ "$scriptmode" = "yes" ]; then
-  [ -f "$1" ] || die "File '$1' not found"
-  cat "$@" >> $batchname 
+  for i in $@; do
+    [ -f "$i" ] || die "File '$i' not found"
+    cat "$i" >> $batchname 
+  done
 elif [ "$mpirun" = "no" ] || [ $ncpus -eq 1 ]; then
   echo "$*" >> $batchname
 else
   echo "$mpicmd -np $ncpus $*" >> $batchname
 fi
-echo result=\$? >> $batchname
+echo "result=\$?" >> $batchname
 
 if [ "$scratch" = "yes" ]; then
   [[ "$time" = "yes" ]] && echo date >> $batchname
@@ -546,8 +548,8 @@ if [ "$run" = "no" ]; then
 fi
 
 if [ -n "${sh_cmd}" ]; then
-  ssh $runhost "${sh_cmd};cd $PWD;$qsub $qsub_opts $batchname"
-  [[ $? -eq 0 ]] || { echo Submit failed >&2; exit 1; }
+  ssh $runhost "${sh_cmd};cd $PWD;$qsub $qsub_opts $batchname" || \
+    die "ssh $runhost '${sh_cmd};cd $PWD;$qsub $qsub_opts $batchname' failed"
 else
   echo "Your shell ($SHELL) is not supported yet" >&2
   echo "Logon $runhost and do:" >&2
