@@ -28,6 +28,7 @@
 #version 0.7.4, 02.09.09 -- fixed small bug in --auto, added --runatnow
 #version 0.7.5, 14.09.09 -- add header in batch script
 #version 0.8.0, 18.09.09 -- tcsh support and --script option
+#version 0.8.1, 21.09.09 -- solved a tcsh issue (thx to biswa)
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -78,7 +79,7 @@ trap "clean_up" 1 2 3 6 15
 if [ "${SHELL##*/}" = "bash" ]  || [ "${SHELL##*/}" = "zsh" ]; then
   sh_cmd="export SGE_ROOT=/opt/SGE"
 elif [ "${SHELL##*/}" = "tcsh" ]; then
-  sh_cmd="setenv SGE_ROOT=/opt/SGE"
+  sh_cmd="setenv SGE_ROOT /opt/SGE"
 else
   die "Your shell ($SHELL) is not supported yet"
 fi
