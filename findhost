@@ -1,17 +1,25 @@
 #! /bin/bash
 
-#version 0.1f ,06.02.08 -- initial version
-#version 0.1g ,16.04.08 -- better version show
-#version 0.1h ,05.10.08 -- better sol for empty pattern
-#version 0.1i ,05.10.08 -- added --hg option
+#version 0.1f, 06.02.08 -- initial version
+#version 0.1g, 16.04.08 -- better version show
+#version 0.1h, 05.10.08 -- better sol for empty pattern
+#version 0.1i, 05.10.08 -- added --hg option
+#version 0.2,  23.09.09 -- subdir support and rcfile
 
 usage="Usage: ${0##*/} <pattern>"
+rcfile="$HOME/.findhost"
+
+die () {
+  echo "$*" >&2
+  exit 1
+}
 
 help () {
   cat << eof
 Find host matching to a pattern !
 $usage
 OPTIONS:
+-s, --set DIR   Set the dir to look for the hosts
 -h, --help      Show this help
 -v, --version   Show version
 
@@ -24,6 +32,13 @@ eof
 }
 
 while [ "${1#-}" != "$1" ]; do
+  if [ "${1#--}" = "$1" ] && [ -n "${1:2}" ]; then
+    if [ "${1#-[s]}" != "${1}" ]; then
+       set -- "${1:0:2}" "${1:2}" "${@:2}"
+    else
+       set -- "${1:0:2}" "-${1:2}" "${@:2}"
+    fi
+ fi
  case $1 in 
    -h | --help)
     help
@@ -31,17 +46,24 @@ while [ "${1#-}" != "$1" ]; do
    -v | --version)
     echo "${0##*/}", $(sed -ne 's/^#\(version.*\) -- .*$/\1/p' $0 | sed -n '$p') by C. Junghans
     exit 0;;
+   -s | --set)
+    [ -d "$2" ] || die "Could not find dir '$2'"
+    echo "$2" > $rcfile
+    echo "Host dir to '$2'"
+    exit 0;;
    --hg)
     echo "${0##*/}: $(sed -ne 's/^#version.* -- \(.*\)$/\1/p' $0 | sed -n '$p')"
     exit 0;;
   *)
-   echo Unknown option \'$1\' - ignored
-   shift ;;
+   die "Unknown option '$1' - ignored"
+   exit 1 ;;
  esac
 done
 
-cd $MYOPT/scripts/job_tools/hosts
-for i in $(ls | grep "$1"); do
-    echo ${i##*/}
-done
-#fs md5sum 6f25ec2f33c2185c6e58c1aadc05cc93
+[[ -f "$rcfile" ]] || die "Could not find rcfile '$rcfile', use --set first"
+hostdir="$(cat $rcfile)"
+[[ -d "$hostdir" ]] || die "Dir in rcfile is wrong, correct with --set option"
+
+pattern="*$1*"
+find $hostdir \! -type d -name "$pattern" -printf "%P\n"
+
