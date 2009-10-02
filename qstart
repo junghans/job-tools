@@ -30,6 +30,7 @@
 #version 0.8.0, 18.09.09 -- tcsh support and --script option
 #version 0.8.1, 21.09.09 -- solved a tcsh issue (thx to biswa)
 #version 0.8.2, 24.09.09 -- solved another tcsh issue (thx to biswa)
+#version 0.8.3, 02.10.09 -- moved to thop100, added --getjid and clean up
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -42,7 +43,7 @@ sge_path="/opt/SGE/bin/lx26-amd64"
 qsub="$sge_path/qsub"
 qstat="$sge_path/qstat"
 qdel="$sge_path/qdel"
-runhost="thop02"
+runhost="thop100"
 ncpus=1
 name="q"
 quiet="no"
@@ -63,6 +64,10 @@ wait="no"
 sleeptime=900
 scriptmode="no"
 set=""
+
+qecho() {
+  [[ "$quiet" = "no" ]] && echo "$*"
+}
 
 die() {
   echo "$*" >&2
@@ -86,80 +91,93 @@ else
 fi
 
 check_job() {
-message=$(ssh $runhost "${sh_cmd};$qstat -u $USER") || \
-  die "ssh $runhost '${sh_cmd};$qstat -u $USER' failed"
-if [ -z "$(echo -e "$message" | awk "(\$1==$1){print \$0}")" ]; then
-  [[ "$quiet" = "yes" ]] || echo "Job '$1' on $runhost NOT found"
-  exit 1
-elif [ -z "$(echo -e "$message" | awk "(\$1==$1)&&(\$5 !~ /E/){print \$0}")" ]; then
-  [[ "$quiet" = "yes" ]] || echo "Job '$1' on $runhost in error state"
-  exit 1
-else
-  [[ "$quiet" = "yes" ]] || echo "Job '$1' on $runhost found"
-  exit 0
-fi
+  local message
+  number_check "$1" "--checkjob"
+  message=$(ssh $runhost "${sh_cmd};$qstat -u $USER") || \
+    die "ssh $runhost '${sh_cmd};$qstat -u $USER' failed"
+  if [ -z "$(echo -e "$message" | awk "(\$1==$1){print \$0}")" ]; then
+    qecho "Job '$1' on $runhost NOT found"
+    return 1
+  elif [ -z "$(echo -e "$message" | awk "(\$1==$1)&&(\$5 !~ /E/){print \$0}")" ]; then
+    qecho "Job '$1' on $runhost in error state"
+    return 1
+  else
+    qecho "Job '$1' on $runhost found"
+    return 0
+  fi
 }
 
 check_shell() {
-if [ "$myshell" = "none" ] || \
-   [ "$myshell" = "bash" ] || \
-   [ "$myshell" = "tcsh" ] || \
-   [ "$myshell" = "zsh" ]; then
-  :
-else
-  die "Your shell is not supported yet"
-fi
+  if [ "$myshell" = "none" ] || \
+     [ "$myshell" = "bash" ] || \
+     [ "$myshell" = "tcsh" ] || \
+     [ "$myshell" = "zsh" ]; then
+    :
+  else
+    die "Your shell is not supported yet"
+  fi
 }
 
 pcheck_job() {
-[ -n "$1" ] || die "No pattern given"
-message=$(ssh $runhost "${sh_cmd};$qstat -u $USER") || \
-  die "ssh $runhost '${sh_cmd};$qstat -u $USER' failed"
-if [ -z "$(echo -e "$message" | awk "(\$3 ~ /${1:0:8}/){print \$0}")" ]; then
-  [[ "$quiet" = "yes" ]] || echo "Job with name matching '${1:0:8}' on $runhost NOT found"
-  exit 1
-elif [ -z "$(echo -e "$message" | awk "(\$3 ~/${1:0:8}/)&&(\$5 !~ /E/){print \$0}")" ]; then
-  [[ "$quiet" = "yes" ]] || echo "Job with name matching '${1:0:8}' on $runhost in error state"
-  exit 1
-else
-  [[ "$quiet" = "yes" ]] || echo "Job with name matching '${1:0:8}' on $runhost found"
-  exit 0
-fi
+  local job_id myjobs failed
+  [ -n "$1" ] || die "pcheck_job: No pattern given"
+  myjobs="$(print_jobids $1)"
+  [ -z "$myjobs" ] || die "No jobs matching $1 found"
+  for job_id in $myjobs; do
+    check_job $job_id || failed="yes"
+  done
+  [ "$failed" = "yes" ] || return 1
+  return 0
 }
 
 kill_job() {
-ssh $runhost "${sh_cmd};$qdel $1" || \
-  die "ssh $runhost '${sh_cmd};$qdel $1' failed"
+  number_check "$1" "--killjob"
+  ssh $runhost "${sh_cmd};$qdel $1" || \
+    die "ssh $runhost '${sh_cmd};$qdel $1' failed"
+}
+
+print_jobids() {
+  local message job_id
+  [ -n "$1" ] || die "print_jobids: Expect a pattern"
+  message=$(ssh $runhost "${sh_cmd};$qstat -u $USER") || \
+    die "ssh $runhost '${sh_cmd};$qstat -u $USER' failed"
+  for job_id in $(echo -e "$message" | awk "(\$3 ~ /${1:0:8}/){print \$1}"); do
+    echo $job_id
+  done
 }
 
 pkill_job() {
-[ -n "$1" ] || die "Expect a pattern"
-message=$(ssh $runhost "${sh_cmd};$qstat -u $USER") || \
-  die "ssh $runhost '${sh_cmd};$qstat -u $USER' failed"
-for job_id in $(echo -e "$message" | awk "(\$3 ~ /${1:0:8}/){print \$1}"); do
-  $0 --killjob $job_id
-done
+  local job_id failed
+  [ -n "$1" ] || die "pkill_job: Expect a pattern"
+  for job_id in $(print_jobids $1); do
+    kill_job $job_id || failed="yes"
+  done
+  [ "$failed" = "yes" ] || return 1
+  return 0
 }
 
 number_check(){
-number="$1"
-option="$2"
-[ -z "$number" ] && die "Missing number in $option"
-[ -n "${number//[0-9]}" ] && die "Argument after $option should be a number"
+  local number option
+  number="$1"
+  option="$2"
+  [ -z "$number" ] && die "Missing number in $option"
+  [ -n "${number//[0-9]}" ] && die "Argument after $option should be a number"
 }
 
 queue_info() {
-if [ $1 -eq 1 ]; then
-  queue="all.q"
-elif [ $1 -eq 2 ]; then
-  queue="dual.q"
-elif [ $1 -eq 8 ]; then
-  queue="octal.q"
-else
-  die "Number of cpus unsupported"
-fi
-ssh $runhost "${sh_cmd};$qstat -q $queue" || \
-  die "ssh $runhost '${sh_cmd};$qstat -q $queue' failed"
+  local queue
+  number_check "$1" "--queueinfo"
+  if [ $1 -eq 1 ]; then
+    queue="all.q"
+  elif [ $1 -eq 2 ]; then
+    queue="dual.q"
+  elif [ $1 -eq 8 ]; then
+    queue="octal.q"
+  else
+    die "Number of cpus unsupported"
+  fi
+  ssh $runhost "${sh_cmd};$qstat -q $queue" || \
+    die "ssh $runhost '${sh_cmd};$qstat -q $queue' failed"
 }
 
 showhelp() {
@@ -187,8 +205,7 @@ SCRIPT OPTIONS:
 -m, --mail NAME      send mail to NAME
                      default: '$mail'
 -x, --nomail         will not use mail function
--f, --finish NAME    Create a file NAME when succesfully finished
-                     Usefull with --checkjob and "[[ -f NAME ]] || exit 1"
+-f, --finish NAME    Touches file NAME when succesfully finished
 -t, --time           Adds a date command before and after the command
 -p, --print          Only print the qsub script (implies --norun)
     --norun          Do NOT run the qsub script in the end
@@ -216,13 +233,14 @@ JOBS OPTIONS:
     --showjobs        Show jobs running (on $runhost)
     --checkjob JOB_ID Return true if job is still running (useful with --f)
                       "while ${0##*/} -q --checkjob JOB_ID; do :; done"
-    --pcheck PATTERN  Return true if job is still running (useful with --f)
-                      PATTERN is search in the name column
+    --pcheck PATTERN  Return true if all jobs matching a pattern are still running
+                      PATTERN is search in the name column (useful with --f)
                       "while ${0##*/} -q --checkjob NAME; do :; done"
     --showlog  JOB_ID Show logfile for running job with number JOB_ID
     --taillog  JOB_ID Same as --showlog but tail and follow
     --killjob  JOB_ID Kill job with NUMBER
     --pkill PATTERN   Kill all jobs matching a pattern
+    --getjid PATTERN  Retrun the ids of all jobs matching PATTERN
     --queueinfo NR    Show info about some queue [1|2|8]
     --header          Show info header
 
@@ -257,16 +275,19 @@ eoh
 }
 
 show_jobs() {
-ssh $runhost "${sh_cmd};$qstat -u $USER" || \
-  die "ssh $runhost '${sh_cmd};$qstat -u $USER' failed"
+  ssh $runhost "${sh_cmd};$qstat -u $USER" || \
+    die "ssh $runhost '${sh_cmd};$qstat -u $USER' failed"
 }
 
 show_logs() {
-message=$(ssh $runhost "${sh_cmd};$qstat -r -j $1") || \
-  die "ssh $runhost '${sh_cmd};$qstat -r -j $1' failed"
-path=$(echo -e "$message" | awk '/^cwd/{ print $2}')
-logfile=$(echo -e "$message" | awk '/^stdout_path_list:/{ print $2}')
-$2 $path/$logfile
+  local message path logfile
+  number_check "$1" "--showlog/--taillog"
+  message=$(ssh $runhost "${sh_cmd};$qstat -r -j $1") || \
+    die "ssh $runhost '${sh_cmd};$qstat -r -j $1' failed"
+  path=$(echo -e "$message" | awk '/^cwd/{ print $2}')
+  logfile=$(echo -e "$message" | awk '/^stdout_path_list:/{ print $2}')
+  $2 $path/$logfile
+  return $?
 }
 ################################################
 ############## Main Program ####################
@@ -360,33 +381,31 @@ while [ "${1#-}" != "$1" ]; do
    shift 2;;
    --showjobs )
    show_jobs
-   exit 0;;
+   exit $?;;
    --killjob )
-   number_check "$2" "--killjob"
    kill_job $2
-   exit 0;;
+   exit $?;;
+   --getjid )
+   print_jobids "$2"
+   exit $?;;
    --pkill )
    pkill_job "$2"
-   exit 0;;
+   exit $?;;
    --checkjob )
-   number_check "$2" "--checkjob"
    check_job $2
-   exit 0;;
+   exit $?;;
    --pcheck )
    pcheck_job $2
-   exit 0;;
+   exit $?;;
    --queueinfo )
-   number_check "$2" "--queueinfo"
    queue_info $2
-   exit 0;;
+   exit $?;;
    --showlog )
-   number_check "$2" "--showlog"
    show_logs "$2" "cat"
-   exit 0;;
+   exit $?;;
    --taillog )
-   number_check "$2" "--showlog"
    show_logs "$2" "tailf"
-   exit 0;;
+   exit $?;;
   -v | --version)
    echo ${0##*/}, $(sed -ne 's/^#\(version.*\) -- .*$/\1/p' $0 | sed -n '$p') by C. Junghans
    exit 0;;
@@ -398,7 +417,7 @@ while [ "${1#-}" != "$1" ]; do
    exit 0;;
   *)
    die "Unknown option '$1'"
-   exit 0;;
+   exit 1;;
  esac
 done
 
@@ -410,7 +429,7 @@ check_shell
 
 if [ -z "$batchname" ]; then
   if [ -n $(type -p mktemp) ]; then
-    batchname=$(mktemp ${name}${template}) || { echo mktemp could not generate file >&2; exit 1; }
+    batchname=$(mktemp ${name}${template}) || die "mktemp could not generate file" 
   else
     echo No mktemp found >&2
     batchname=$name
@@ -425,9 +444,9 @@ if [ -z "$logfile" ]; then
   fi
 fi
 
-if [ "$quiet" = "no" ] && [ "$batchname" != "/dev/stdout" ]; then
-  echo qsubscript: $batchname
-  echo logfile: $logfile
+if [ "$batchname" != "/dev/stdout" ]; then
+  qecho "qsubscript: $batchname"
+  qecho "logfile: $logfile"
 fi
 
 #TCSH changes go here
@@ -550,8 +569,9 @@ if [ "$run" = "no" ]; then
 fi
 
 if [ -n "${sh_cmd}" ]; then
-  ssh $runhost "${sh_cmd};cd $PWD;$qsub $qsub_opts $batchname" || \
-    die "ssh $runhost '${sh_cmd};cd $PWD;$qsub $qsub_opts $batchname' failed"
+  message="$(ssh $runhost "${sh_cmd};cd $PWD;$qsub $qsub_opts $batchname")" || \
+    die "${message}\nssh $runhost '${sh_cmd};cd $PWD;$qsub $qsub_opts $batchname' failed"
+  qecho "$message"
 else
   echo "Your shell ($SHELL) is not supported yet" >&2
   echo "Logon $runhost and do:" >&2
@@ -561,8 +581,11 @@ else
 fi
 
 if [ "$wait" = "yes" ]; then
-  echo Waiting for $batchname to finish
-  while $0 -q --pcheck $batchname; do
+  job_id="$(echo "${message}" | sed -n 's/^Your job \([0-9]*\) (".*$/\1/p')" 
+  [[ -z "$job_id" ]] && die "Oh oh could not fetch job_id"
+  qecho "Waiting for $batchname ($job_id) to finish"
+  quiet="yes"
+  while check_job $job_id; do
     sleep $sleeptime;
   done
   [[ -n "${finish_file}" ]] && [[ ! -f "$finish_file" ]] && exit 1
