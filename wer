@@ -1,7 +1,9 @@
 #! /usr/bin/perl -w
 # wer
 #
-# (C) 2007 Chr. Junghans
+# (C) 2007-2009 Chr. Junghans
+#version 1.3   06.02.08 -- old version
+#version 1.3.1 08.10.09 -- add new version system
 
 use strict;
 
@@ -10,11 +12,12 @@ my $maxmin=30;
 my $output=undef;
 $_=$0;
 s#^.*/##;
-my $usage="Usage: $_ [OPTIONS]";
+my $progname=$_;
+my $usage="Usage: $progname [OPTIONS]";
 my $quiet=undef;
 my $all=undef;
 
-while ((defined ($ARGV[0])) and ($ARGV[0] =~ /^\-/)){
+while ((defined ($ARGV[0])) and ($ARGV[0] =~ /^-./)){
         if (($ARGV[0] !~ /^--/) and (length($ARGV[0])>2)){
            $_=shift(@ARGV);
            if ( $_ =~ /^-[lo]/ ) {
@@ -52,12 +55,20 @@ EOH
 		shift(@ARGV);
 		$output=shift(@ARGV);
 	}
-        elsif (($ARGV[0] eq "-v") or ($ARGV[0] eq "--version")){
-		$_=$0;
-		s#^.*/##;
-                print"$_, version 1.3, 06.02.2008 by C. Junghans\n";
-                exit;
-	}
+        elsif (($ARGV[0] eq "-v") or ($ARGV[0] eq "--version"))
+        {
+           my $version=`perl -ne 'print "\$1\n" if /^#(version .*?) --/' $0 | perl -ne 'print if eof'`;
+           chomp($version);
+           print "$progname, $version  by C. Junghans\n";
+           exit;
+        }
+        elsif ($ARGV[0] eq "--hg")
+        {
+           my $message=`perl -ne 'print "\$1\n" if /^#version .*? -- (.*)\$/' $0 | perl -ne 'print if eof'`;
+           chomp($message);
+           print "$progname: $message\n";
+           exit;
+        }
         elsif (($ARGV[0] eq "-q") or ($ARGV[0] eq "--quiet")){
 		shift(@ARGV);
         	$quiet="yes";
