@@ -31,6 +31,7 @@
 #version 0.8.1, 21.09.09 -- solved a tcsh issue (thx to biswa)
 #version 0.8.2, 24.09.09 -- solved another tcsh issue (thx to biswa)
 #version 0.8.3, 02.10.09 -- moved to thop100, added --getjid and clean up
+#version 0.8.4, 02.11.09 -- fixed a bug in --pcheck
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -122,7 +123,10 @@ pcheck_job() {
   local job_id myjobs failed
   [ -n "$1" ] || die "pcheck_job: No pattern given"
   myjobs="$(print_jobids $1)"
-  [ -z "$myjobs" ] || die "No jobs matching $1 found"
+  if [ -z "$myjobs" ]; then 
+    qecho "No jobs matching $1 found" 
+    return 1
+  fi
   for job_id in $myjobs; do
     check_job $job_id || failed="yes"
   done
