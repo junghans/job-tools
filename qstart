@@ -33,6 +33,7 @@
 #version 0.8.3, 02.10.09 -- moved to thop100, added --getjid and clean up
 #version 0.8.4, 02.11.09 -- fixed a bug in --pcheck
 #version 0.8.5, 03.11.09 -- fixed another bug in --pcheck + pcheck help
+#version 0.8.6, 24.11.09 -- added --showdir + better output in logfile
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -243,6 +244,7 @@ JOBS OPTIONS:
                       PATTERN is search in the name column (useful with --f)
                       "while ${0##*/} -q --pcheck NAME; do :; done"
     --showlog  JOB_ID Show logfile for running job with number JOB_ID
+    --showdir  JOB_ID Show pwd of simulation
     --taillog  JOB_ID Same as --showlog but tail and follow
     --killjob  JOB_ID Kill job with NUMBER
     --pkill PATTERN   Kill all jobs matching a pattern
@@ -295,6 +297,18 @@ show_logs() {
   $2 $path/$logfile
   return $?
 }
+
+show_path() {
+  local message path
+  number_check "$1" "--showdir"
+  message=$(ssh $runhost "${sh_cmd};$qstat -r -j $1") || \
+    die "ssh $runhost '${sh_cmd};$qstat -r -j $1' failed"
+  path=$(echo -e "$message" | awk '/^cwd/{ print $2}')
+  [ -z "$path" ] && die "show_path: Could not get path"
+  echo "$path"
+  return $?
+}
+
 ################################################
 ############## Main Program ####################
 ################################################
@@ -406,6 +420,9 @@ while [ "${1#-}" != "$1" ]; do
    --queueinfo )
    queue_info $2
    exit $?;;
+   --showdir )
+   show_path "$2"
+   exit $?;;
    --showlog )
    show_logs "$2" "cat"
    exit $?;;
@@ -511,7 +528,7 @@ EOF
 cat <<EOF >>$batchname
 
 cd $PWD
-echo Hi, I am job \$JOB_ID on \$HOSTNAME
+echo Hi, I am job \$JOB_ID on \$HOSTNAME in \$PWD
 
 EOF
 
@@ -543,7 +560,10 @@ elif [ "$mpirun" = "no" ] || [ $ncpus -eq 1 ]; then
 else
   echo "$mpicmd -np $ncpus $*" >> $batchname
 fi
-echo "${set}result=\$?" >> $batchname
+cat <<EOF >>$batchname
+${set}result=\$?
+[ \$result -ne 0 ] && echo "\$JOB_ID finished unhappy!"
+EOF
 
 if [ "$scratch" = "yes" ]; then
   [[ "$time" = "yes" ]] && echo date >> $batchname
