@@ -5,6 +5,7 @@
 #version 0.1.2 ,14.10.09 -- missing number check 
 #version 0.1.3 ,12.11.09 -- fixed a bug in option parsing 
 #version 0.1.4 ,12.11.09 -- 32 cpus is a long option now
+#version 0.1.5, 24.11.09 -- added --showdir + better output in logfile
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -182,6 +183,7 @@ JOBS OPTIONS:
                       PATTERN is search in the simname
                       "while ${0##*/} -q --checkjob NAME; do :; done"
     --showlog  JOB_ID Show logfile for running job with number JOB_ID
+    --showdir  JOB_ID Show pwd of simulation
     --taillog  JOB_ID Same as --showlog but tail and follow
     --killjob  JOB_ID Kill job with NUMBER
     --pkill PATTERN   Kill all jobs, which simname matches the pattern
@@ -230,6 +232,15 @@ path="$(echo -e "$message" | awk '/Initial Working Dir:/{print $4}')"
 logfile="$(echo -e "$message" | awk '/Out:/{print $2}')"
 ssh $runhost "$2 ${path}/${logfile}"
 [[ $? -eq 0 ]] || exit 1
+}
+
+show_path() {
+message=$(ssh $runhost "$job_status -l $1")
+[[ $? -eq 0 ]] || exit 1
+path="$(echo -e "$message" | awk '/Initial Working Dir:/{print $4}')"
+[[ $? -eq 0 ]] || exit 1
+[[ -z "$path" ]] && exit 1
+echo "$path"
 }
 ################################################
 ############## Main Program ####################
@@ -319,6 +330,9 @@ while [ "${1#-}" != "$1" ]; do
    --nompirun )
    mpirun="no"
    shift ;;
+   --showdir )
+   show_path $2
+   exit 0;;
    --showjobs )
    show_jobs
    exit 0;;
@@ -443,13 +457,17 @@ echo '# @ queue' >> $batchname
 cat <<EOF >>$batchname
 
 cd $sim_dir
-echo I am job \$JOB_ID on \$HOSTNAME
-echo Starting simulation >> $batchname
+echo I am job \$JOB_ID on \$HOSTNAME in \$PWD
+echo Starting simulation
 EOF
 [[ "$time" = "yes" ]] && echo date >> $batchname
 
-echo "$cmdline" >> $batchname
-echo result=\$? >> $batchname
+cat <<EOF >>$batchname
+$cmdline
+result=\$?
+[ \$result -ne 0 ] && echo "\$JOB_ID finished unhappy!"
+EOF
+
 [[ "$time" = "yes" ]] && echo date >> $batchname
 
 if [ -n "$resub" ]; then
