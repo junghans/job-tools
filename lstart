@@ -40,6 +40,7 @@
 #version 3.7.0 15.10.08 -- bug in kill_job
 #version 3.7.1 01.12.08 -- bug in kill_job
 #version 3.7.2 23.09.09 -- added header to batch file, which to type
+#version 3.7.3 30.11.09 -- fixed a bug in check_exist + source bashrc
 
 
 ##########################################
@@ -101,6 +102,7 @@ cat > $batchname << eof
 #using $($0 --version)
 
 #run $progname
+source ~/.bashrc
 cd $PWD
 eof
 if [ $mpinp -gt 1 ] && [ "$mpitype" == "LAM" ]; then
@@ -174,7 +176,7 @@ fi
 check_exist() {
 #check if program exist if it is wanted
 if [ "$checkexist" = "yes" ]; then
-   wholeprogram=$(type $program 2> /dev/null)
+   wholeprogram=$(type -p $program 2> /dev/null)
    # try local path, if ./ was not added to path
    if [ -z "$wholeprogram" ]; then
       wholeprogram=$(type ./$program 2> /dev/null)
