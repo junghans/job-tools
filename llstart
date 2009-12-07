@@ -7,6 +7,7 @@
 #version 0.1.4 ,12.11.09 -- 32 cpus is a long option now
 #version 0.1.5, 24.11.09 -- added --showdir + better output in logfile
 #version 0.1.6, 30.11.09 -- fixed bug in number parsing
+#version 0.1.6, 07 12.09 -- fixed bug in resub (thx to manuel) 
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -476,7 +477,7 @@ if [ -n "$resub" ]; then
     echo Error: Resub and print options make no sense together >&2
     echo Error: Filename after $job_submit in next line will be wrong !!! >&2
   fi
-  echo "[[ \$result -eq 0 ]] && [[ ! -f $resub ]] && { $job_subbmit $sim_dir/$batchname; exit 0; }" >> $batchname
+  echo "[[ \$result -eq 0 ]] && [[ ! -f $resub ]] && { $job_submit $sim_dir/$batchname; exit 0; }" >> $batchname
 fi
 [[ -z "$finish_file" ]] || echo "[[ \$result -eq 0 ]] && touch $finish_file" >> $batchname
 
