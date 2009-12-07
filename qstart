@@ -34,6 +34,7 @@
 #version 0.8.4, 02.11.09 -- fixed a bug in --pcheck
 #version 0.8.5, 03.11.09 -- fixed another bug in --pcheck + pcheck help
 #version 0.8.6, 24.11.09 -- added --showdir + better output in logfile
+#version 0.8.7, 07.12.09 -- exec lamboot if no lamd is running 
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -550,6 +551,7 @@ fi
 
 echo echo Starting simulation >> $batchname
 [[ "$time" = "yes" ]] && echo date >> $batchname
+[[ $ncpus -ne 1 ]] && echo 'pgrep lamd > /dev/null || lamboot' >> $batchname
 if [ "$scriptmode" = "yes" ]; then
   for i in $@; do
     [ -f "$i" ] || die "File '$i' not found"
