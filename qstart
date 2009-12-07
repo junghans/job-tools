@@ -42,6 +42,7 @@ qsubmit="qsubmit"
 mpirun="yes"
 hostname=""
 qsub_opts=""
+lamboot="/opt/lam/bin/lamboot"
 mpicmd="/opt/lam/bin/mpirun"
 sge_path="/opt/SGE/bin/lx26-amd64"
 qsub="$sge_path/qsub"
@@ -551,7 +552,7 @@ fi
 
 echo echo Starting simulation >> $batchname
 [[ "$time" = "yes" ]] && echo date >> $batchname
-[[ $ncpus -ne 1 ]] && echo 'pgrep lamd > /dev/null || lamboot' >> $batchname
+[[ $ncpus -ne 1 ]] && echo "pgrep lamd > /dev/null || $lamboot" >> $batchname
 if [ "$scriptmode" = "yes" ]; then
   for i in $@; do
     [ -f "$i" ] || die "File '$i' not found"
