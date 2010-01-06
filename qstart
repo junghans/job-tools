@@ -551,7 +551,7 @@ EOF
 [ -n "$filelist" ] && cat <<EOF >>$batchname
 echo Copy needed files:
 echo $filelist
-cp $filelist \$newdir
+cp -r $filelist \$newdir
 echo finished copying files
 EOF
 echo 'cd $newdir' >> $batchname
@@ -582,7 +582,7 @@ if [ "$scratch" = "yes" ]; then
 #Copy files back  
 echo Copy back files:
 echo *
-cp -u * \$olddir
+cp -ru * \$olddir
 echo finished copying files
 cd \$olddir
 echo Removing scratch dir
