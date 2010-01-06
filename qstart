@@ -35,6 +35,8 @@
 #version 0.8.5, 03.11.09 -- fixed another bug in --pcheck + pcheck help
 #version 0.8.6, 24.11.09 -- added --showdir + better output in logfile
 #version 0.8.7, 07.12.09 -- exec lamboot if no lamd is running 
+#version 0.8.8, 04.01.10 -- add -- option 
+#version 0.9.0, 06.01.10 -- fixed a bug in emptyfile list (thx to sasha) 
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -255,6 +257,7 @@ JOBS OPTIONS:
     --header          Show info header
 
 COMMON OPTIONS:
+    --               End of options (if program starts with -)
 -q, --quiet          Be quiet
 -v, --version        Prints version
 -h, --help           Show this help message
@@ -440,6 +443,9 @@ while [ "${1#-}" != "$1" ]; do
   -h | --help)
    showhelp
    exit 0;;
+  --)
+   shift
+   break;;
   *)
    die "Unknown option '$1'"
    exit 1;;
@@ -539,15 +545,16 @@ if [ "$scratch" = "yes" ]; then
   cat <<EOF >>$batchname
 #Copy the needed files 
 ${set}olddir=\$PWD
-echo Copy needed files:
-echo $filelist
 ${set}newdir=$scratch_dir/\$USER/\$JOB_ID
 mkdir -p \$newdir || exit 1
+EOF
+[ -n "$filelist" ] && cat <<EOF >>$batchname
+echo Copy needed files:
+echo $filelist
 cp $filelist \$newdir
 echo finished copying files
-cd \$newdir
-
 EOF
+echo 'cd $newdir' >> $batchname
 fi
 
 echo echo Starting simulation >> $batchname
