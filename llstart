@@ -7,7 +7,8 @@
 #version 0.1.4 ,12.11.09 -- 32 cpus is a long option now
 #version 0.1.5, 24.11.09 -- added --showdir + better output in logfile
 #version 0.1.6, 30.11.09 -- fixed bug in number parsing
-#version 0.1.6, 07 12.09 -- fixed bug in resub (thx to manuel) 
+#version 0.1.6, 07.12.09 -- fixed bug in resub (thx to manuel) 
+#version 0.2.0, 07.01.09 -- major reworked, nicer jobs status
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -18,6 +19,7 @@ job_info="llclass"
 mpirun="yes"
 mpirun_cmd="/usr/bin/poe"
 runhost="vip"
+real_runhost="vip001"
 ncpus=32
 name="ll"
 quiet="no"
@@ -37,97 +39,121 @@ myshell="${SHELL##*/}"
 wait="no"
 sleeptime=900
 
+qecho() {
+  [[ "$quiet" = "no" ]] && echo "$*"
+}
+
+die() {
+  echo -e "$*" >&2
+  exit 1
+}
+
+run_on_host() {
+  local message ssh
+  [ "$1" = "--show" ] && { shift;ssh="echo "; }
+  [ -z "$1" ] && die "run_on_host: Missing argument"
+  if [ "$HOSTNAME" = "$runhost" ]; then
+    ssh+="bash -c"
+  else
+    ssh+="ssh $runhost"
+  fi
+  message=$($ssh "$*") || die "$ssh '$*' failed\nError message: $message"
+  [ -z "$message" ] || echo -e "$message"
+}
+
 check_job() {
-message=$(ssh $runhost "$job_status -u \$USER")
-[[ $? -eq 0 ]] || exit 1
-if [ -z "$(echo -e "$message" | awk "(\$1~/$1/){print \$0}")" ]; then
-  [[ "$quiet" = "yes" ]] || echo "Job '$1' on $runhost NOT found"
-  exit 1
-elif [ -z "$(echo -e "$message" | awk "(\$1~/$1/)&&(\$5 !~ /N[QR]/){print \$0}")" ]; then
-  [[ "$quiet" = "yes" ]] || echo "Job '$1' on $runhost in error state"
-  exit 1
-else
-  [[ "$quiet" = "yes" ]] || echo "Job '$1' on $runhost found"
-  exit 0
-fi
+  local message
+  [ -z "$1" ] && die "check_job: Missing argument"
+  message=$(run_on_host "$job_status -u \$USER") || die
+  if [ -z "$(echo -e "$message" | awk "(\$1~/$1/){print \$0}")" ]; then
+    qecho "Job '$1' on $runhost NOT found"
+    return 1
+  elif [ -z "$(echo -e "$message" | awk "(\$1~/$1/)&&(\$5 !~ /N[QR]/){print \$0}")" ]; then
+    qecho "Job '$1' on $runhost in error state"
+    return 1
+  else
+    qecho "Job '$1' on $runhost found"
+    return 0
+  fi
 }
 
 pcheck_job() {
-[ -n "$1" ] || { echo No pattern given >&2; exit 1; }
-message=$(ssh $runhost "$job_status -u \$USER | grep \$USER" )
-[[ $? -eq 0 ]] || exit 1
-found="no"
-for job_id in $(echo -e "$message" | awk '{print $1}'); do
-  jmessage=$(ssh $runhost "$job_status -l $job_id")
-  jname="$(echo -e "$jmessage" | awk '/Job Name:/{print $3}')"
-  if [[ $jname =~ $1 ]]; then
-    echo -n "$job_id matches simname $1, "
-    $0 --checkjob $job_id
-    found="yes"
+  local job_id myjobs failed
+  [ -n "$1" ] || die "pcheck_job: No pattern given"
+  myjobs="$(print_jobids $1)" || die
+  if [ -z "$myjobs" ]; then 
+    qecho "No jobs matching $1 found" 
+    return 1
   fi
-done
-[[ "$found" = "no" ]] && echo "No job matching '$1' on $runhost found" && exit 1
-exit 0
+  failed="yes"
+  for job_id in $myjobs; do
+    check_job $job_id && failed="no"
+  done
+  [ "$failed" = "yes" ] && return 1
+  return 0
 }
 
 kill_job() {
-ssh $runhost "${job_kill} $1"
-[[ $? -eq 0 ]] || exit 1
+  run_on_host "${job_kill} $1"
+  return $?
+}
+
+print_jobids() {
+  local message job_id
+  [ -n "$1" ] || die "print_jobids: Expect a pattern"
+  message=$(run_on_host "$job_status -u \$USER -f %id %jn") || die
+  for job_id in $(echo -e "$message" | awk "(\$2 ~ /${1:0:8}/){print \$1}"); do
+    echo $job_id
+  done
 }
 
 pkill_job() {
-[[ -n "$1" ]] || { echo Expect a pattern >&2; exit 1; }
-message=$(ssh $runhost "$job_status -u \$USER | grep \$USER" )
-[[ $? -eq 0 ]] || exit 1
-found="no"
-for job_id in $(echo -e "$message" | awk '{print $1}'); do
-  jmessage=$(ssh $runhost "$job_status -l $job_id")
-  jname="$(echo -e "$jmessage" | awk '/Job Name:/{print $3}')"
-  if [[ $jname =~ $1 ]]; then 
-    echo -n "$job_id matches simname $1, " 
-    $0 --killjob $job_id
-    found="yes"
-  fi
-done
-[[ "$found" = "no" ]] && echo "No job matching '$1' on $runhost found" && exit 1
-exit 0
+  local job_id failed myjobs
+  [ -n "$1" ] || die "pkill_job: Expect a pattern"
+  myjobs="$(print_jobids $1)" || die
+  for job_id in $myjobs; do
+    kill_job $job_id || failed="yes"
+  done
+  [ "$failed" = "yes" ] || return 1
+  return 0
 }
 
 number_check(){
-number="$1"
-option="$2"
-if [ -z "$number" ] || [ -n "${number//[0-9]}" ]; then
-  echo argument after/in $option should be a number
-  exit 1
-fi
+  local number option
+  [ -z "$1" ] && die "number_check: Missing argument"
+  number="$1"
+  option="$2"
+  [ -z "$number" ] && die "Missing number in $option"
+  [ -n "${number//[0-9]}" ] && die "Argument after $option should be a number"
 }
 
 cpunr_to_queuename(){
-if [ $1 -eq 32 ]; then
-  echo "small"
-elif [ $1 -eq 64 ]; then
-  echo "big"
-elif [ $1 -eq 128 ]; then
-  echo "jumbo"
-elif [ $1 -eq 256 ]; then
-  echo "dino"
-elif [ $1 -eq 512 ]; then
-  echo "monster"
-elif [ $1 -eq 1024 ]; then
-  echo "giant"
-elif [ $1 -eq 2048 ]; then
-  echo "grant"
-elif [ $1 -eq 4096 ]; then
-  echo "xxl"
-else
-  echo ""
-fi
+  [ -z "$1" ] && die "cpunr_to_queuename: Missing argument"
+  if [ $1 -eq 32 ]; then
+    echo "small"
+  elif [ $1 -eq 64 ]; then
+    echo "big"
+  elif [ $1 -eq 128 ]; then
+    echo "jumbo"
+  elif [ $1 -eq 256 ]; then
+    echo "dino"
+  elif [ $1 -eq 512 ]; then
+    echo "monster"
+  elif [ $1 -eq 1024 ]; then
+    echo "giant"
+  elif [ $1 -eq 2048 ]; then
+    echo "grant"
+  elif [ $1 -eq 4096 ]; then
+    echo "xxl"
+  else
+    echo ""
+  fi
 }
 
 queue_info() {
-queue="$(cpunr_to_queuename $1)"
-ssh $runhost "$job_info $queue"
-[[ $? -eq 0 ]] || exit 1
+  queue="$(cpunr_to_queuename $1)"
+  run_on_host "$job_info $queue"
+  return $?
 }
 
 showhelp() {
@@ -149,6 +175,8 @@ SCRIPT OPTIONS:
     --template TEXT  Change template for mktemp
                      Default: $template
 -a, --auto           Use first argument as global name
+    --script         Will use the argument as base scripts and concatenate them
+                     (implies --nompirun)
 -e, --emptytemplate  Same as --template ""
 -m, --mail NAME      send mail to NAME
                      default: '$mail'
@@ -159,17 +187,19 @@ SCRIPT OPTIONS:
 -p, --print          Only print the qsub script (implies --norun)
     --norun          Do NOT run the qsub script in the end
 -r, --resub FILE     Resub the script if exit status was 0 and FILE not exist
--w, --wait           Waits for the job to finish
+-w, --wait           Waits for the job to finish and copyback data
                      Exit status from existence of FILE from --finish or --resub
     --sleeptime      Changes the sleeptime for --wait
                      Default: $sleeptime
     --simdir         Where to do the simulation
                      Default: $sim_base
 		     So simulation will be done in \$HOME/$sim_base/\$(mktemp ${name}$template)
+		     (Replaced by \$PWD if you run ${0##*/} on $runhost)
     --shell NAME     Change the shell to use, script will sources ~/.XXXrc   
                      Default: $myshell
     --needed FILES   Give the files needed to be copy to the scratch dir to
                      run, remember to use quotes ("file1 file2 file3" or "\$(ls *.d)")
+    --cpback BATCH   Copy back files from jobs which was start with BATCH
 
 MPI OPTIONS:
 -N, --NNNN           Number of cpus (also determines the queue)
@@ -181,14 +211,15 @@ JOBS OPTIONS:
     --showjobs        Show jobs running (on $runhost)
     --checkjob JOB_ID Return true if job is still running (useful with --f)
                       "while ${0##*/} -q --checkjob JOB_ID; do :; done"
-    --pcheck PATTERN  Return true if job is still running (useful with --f)
-                      PATTERN is search in the simname
+    --pcheck PATTERN  Return true if at least one job matching a pattern is still running
+                      PATTERN is search in the simname (useful with --f)
                       "while ${0##*/} -q --checkjob NAME; do :; done"
     --showlog  JOB_ID Show logfile for running job with number JOB_ID
     --showdir  JOB_ID Show pwd of simulation
     --taillog  JOB_ID Same as --showlog but tail and follow
     --killjob  JOB_ID Kill job with NUMBER
-    --pkill PATTERN   Kill all jobs, which simname matches the pattern
+    --pkill PATTERN   Kill all jobs matching a pattern
+    --getjid PATTERN  Retrun the ids of all jobs matching PATTERN
     --queueinfo NR    Show info about some queue [32|64|128|..|4096]
     --header          Show info header
 
@@ -223,26 +254,39 @@ eoh
 }
 
 show_jobs() {
-ssh $runhost "$job_status -u \$USER"
-[[ $? -eq 0 ]] || exit 1
+  run_on_host "$job_status -f %id %p %jn %o %st %dq %dd %c %h -u \$USER"
+  return $?
 }
 
 show_logs() {
-message=$(ssh $runhost "$job_status -l $1")
-[[ $? -eq 0 ]] || exit 1
-path="$(echo -e "$message" | awk '/Initial Working Dir:/{print $4}')"
-logfile="$(echo -e "$message" | awk '/Out:/{print $2}')"
-ssh $runhost "$2 ${path}/${logfile}"
-[[ $? -eq 0 ]] || exit 1
+  local message path logfile
+  [ -z "$2" ] && die "show_logs: Missing argument"
+  message=$(run_on_host "$job_status -l $1") || die
+  path="$(echo -e "$message" | awk '/Initial Working Dir:/{print $4}')"
+  logfile="$(echo -e "$message" | awk '/Out:/{print $2}')"
+  run_on_host "$2 ${path}/${logfile}"
+  return $?
 }
 
 show_path() {
-message=$(ssh $runhost "$job_status -l $1")
-[[ $? -eq 0 ]] || exit 1
-path="$(echo -e "$message" | awk '/Initial Working Dir:/{print $4}')"
-[[ $? -eq 0 ]] || exit 1
-[[ -z "$path" ]] && exit 1
-echo "$path"
+  local message path
+  [ -z "$1" ] && die "show_path: Missing argument"
+  message=$(run_on_host "$job_status -l $1") || die
+  path="$(echo -e "$message" | awk '/Initial Working Dir:/{print $4}')"
+  [[ -z "$path" ]] && die "show_path: Could not get path"
+  echo "$path"
+  return $?
+}
+
+copy_back() {
+  local path
+  [ -z "$1" ] && die "copy_back: Missing argument"
+  [ -f "$1" ] || die "$1 not found"
+  [ -z "$(grep llstart $1)" ] && die "$1 seems NOT to be a llstart script"
+  path="$(awk '/^cd/{print $2}' $1)"
+  scp -Cr $runhost:$path/* . || \
+    die "scp -Cr $runhost:./$path/* . failed"
+  return $?
 }
 ################################################
 ############## Main Program ####################
@@ -284,6 +328,10 @@ while [ "${1#-}" != "$1" ]; do
    shift 2;;
    -a | --auto )
    auto="yes"
+   shift ;;
+  --script )
+   scriptmode="yes"
+   mpirun="no"
    shift ;;
    --norun )
    run="no"
@@ -334,32 +382,35 @@ while [ "${1#-}" != "$1" ]; do
    shift ;;
    --showdir )
    show_path $2
-   exit 0;;
+   exit $?;;
    --showjobs )
    show_jobs
-   exit 0;;
+   exit $?;;
+   --cpback )
+   copy_back $2
+   exit $?;;
    --killjob )
    kill_job $2
-   exit 0;;
+   exit $?;;
    --pkill )
    pkill_job "$2"
-   exit 0;;
+   exit $?;;
    --checkjob )
    check_job $2
-   exit 0;;
+   exit $?;;
    --pcheck )
    pcheck_job $2
-   exit 0;;
+   exit $?;;
    --queueinfo )
    number_check "$2" "--queueinfo"
    queue_info $2
-   exit 0;;
+   exit $?;;
    --showlog )
    show_logs "$2" "cat"
-   exit 0;;
+   exit $?;;
    --taillog )
    show_logs "$2" "tail -f"
-   exit 0;;
+   exit $?;;
   -v | --version)
    echo ${0##*/}, $(sed -ne 's/^#\(version.*\) -- .*$/\1/p' $0 | sed -n '$p') by C. Junghans
    exit 0;;
@@ -372,23 +423,16 @@ while [ "${1#-}" != "$1" ]; do
   *)
    echo "Unknown option '$1'" >&2
    exit 1;;
+  --)
+   shift
+   break;;
  esac
 done
 
-if [ -z "$1" ]; then
-  echo Missing program name
-  echo $usage
-  echo help with --help
-  exit 1
-fi
+[ -z "$1" ] && die "Missing program name (try --help)"
 
 [[ $auto = "yes" ]] && name=$1
 
-if [ "$mpirun" = "no" ] || [ $ncpus -eq 1 ]; then
-  cmdline="$*"
-else
-  cmdline="$mpirun_cmd $*"
-fi
 
 if [ -z "$batchname" ]; then
   if [ -n $(type -p mktemp) ]; then
@@ -407,12 +451,12 @@ if [ -z "$logfile" ]; then
   fi
 fi
 
-if [ "$quiet" = "no" ] && [ "$batchname" != "/dev/stdout" ]; then
-  echo llsubscript: $batchname
-  echo logfile: $logfile
+if [ "$batchname" != "/dev/stdout" ]; then
+  qecho llsubscript: $batchname
+  qecho logfile: $logfile
 fi
 
-if [ -z "${HOSTNAME/#vip*}" ]; then
+if [ "${HOSTNAME}" = "$real_runhost" ]; then
   #we are already on vip
   sim_dir=$PWD
 else
@@ -420,12 +464,10 @@ else
 fi
 
 queue_name="$(cpunr_to_queuename $ncpus)"
-if [ -z "$queue_name" ]; then
-  echo Do not know how to handle this Number of cpus '$nrcpus' >&2
-  [[ "$batchname" = "/dev/stdout" ]] || rm $batchname
-  exit 1
-else
-  nnodes=$(($ncpus/32))
+[ -z "$queue_name" ] && die "Do not know how to handle this Number of cpus '$nrcpus'"
+
+nnodes=$(($ncpus/32))
+
 cat <<EOF >> $batchname
 #! /bin/bash
 #This script is generated by $USER@$HOSTNAME
@@ -443,9 +485,8 @@ cat <<EOF >> $batchname
 # @ class = $queue_name
 # @ error = $logfile
 # @ output = $logfile
-# @ job_name = $name
+# @ job_name = $batchname
 EOF
-fi
   
 if [ -z "$mail" ]; then
   echo '# @ notification = never' >> $batchname
@@ -464,6 +505,17 @@ echo Starting simulation
 EOF
 [[ "$time" = "yes" ]] && echo date >> $batchname
 
+if [ "$scriptmode" = "yes" ]; then
+  for i in $@; do
+    [ -f "$i" ] || die "File '$i' not found"
+    cat "$i" >> $batchname 
+  done
+elif [ "$mpirun" = "no" ] || [ $ncpus -eq 1 ]; then
+  cmdline="$*"
+else
+  cmdline="$mpirun_cmd $*"
+fi
+
 cat <<EOF >>$batchname
 $cmdline
 result=\$?
@@ -481,37 +533,38 @@ if [ -n "$resub" ]; then
 fi
 [[ -z "$finish_file" ]] || echo "[[ \$result -eq 0 ]] && touch $finish_file" >> $batchname
 
+if [ "${HOSTNAME}" != "$real_runhost" ]; then
+    #we are not on vip
+   if [ -z "$filelist" ]; then
+     echo "Run a simulation on $runhost from here with no needed files ?" >&2
+     echo "I do NOT think this make sense, do it manually!" >&2
+     run_on_host --show "cd $sim_dir;$job_submit $batchname"
+     exit 1
+   fi
+   message=$(run_on_host "[ -d \$HOME/$sim_base/$batchname ] || echo Good") || die
+   [ "$message" = "Good" ] || die "$runhost:\$HOME/$sim_base/$batchname exists"
+   run_on_host "mkdir -p \$HOME/$sim_base/$batchname" || die "mkdir failed"
+   echo Copying needed files
+   scp -Cr $filelist $batchname $runhost:./$sim_base/$batchname/ || \
+     die "scp -Cr $filelist $batchname $runhost:./$sim_base/$batchname/ failed"
+fi
+
 if [ "$run" = "no" ]; then
-  [[ "$batchname" != "/dev/stdout" ]] && echo "ssh $runhost 'cd $sim_dir;$job_submit $batchname'"
+  [[ "$batchname" != "/dev/stdout" ]] && run_on_host --show "cd $sim_dir;$job_submit $batchname"
   exit 0
 fi
 
-if [ -n "${HOSTNAME/#vip*}" ]; then
-    #we are not on vip
-   if [ -z "$filelist" ]; then
-     echo "Run a simulation on vip from here with no needed files ?" >&2
-     echo "I do NOT think this make sense, do it manually!" >&2
-     echo "ssh $runhost 'cd $sim_dir;$job_submit $batchname'"
-     exit 1
-   fi
-   echo Copying needed files
-   ssh $runhost "mkdir -p \$HOME/$sim_base/$batchname"
-   [[ $? -eq 0 ]] || { echo mkdir failed >&2; exit 1; }
-   scp -r $filelist $batchname vip:./$sim_base/$batchname/
-   [[ $? -eq 0 ]] || { echo scp failed >&2; exit 1; }
-fi
-
-ssh $runhost "cd $sim_dir;$job_submit $batchname"
-[[ $? -eq 0 ]] || { echo Submit failed >&2; exit 1; }
+message="$(run_on_host "cd $sim_dir;$job_submit $batchname")" || die
+qecho "$message"
 
 if [ "$wait" = "yes" ]; then
-  echo Waiting for $batchname to finish
-  echo fixme
-  exit 1
-  while $0 -q --pcheck $batchname; do
+  job_id="$(print_jobids $batchname)"
+  [[ -z "$job_id" ]] && die "Oh oh could not fetch job_id"
+  qecho "Waiting for $batchname ($job_id) to finish"
+  quiet="yes"
+  while check_job $job_id; do
     sleep $sleeptime;
   done
-  [[ -n "${finish_file}" ]] && [[ ! -f "$finish_file" ]] && exit 1
-  [[ -n "${resub}" ]] && [[ ! -f "$resub" ]] && exit 1
+  copy_back $batchname
   exit 0
 fi
