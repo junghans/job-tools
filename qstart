@@ -37,6 +37,7 @@
 #version 0.8.7, 07.12.09 -- exec lamboot if no lamd is running 
 #version 0.8.8, 04.01.10 -- add -- option 
 #version 0.9.0, 06.01.10 -- fixed a bug in emptyfile list (thx to sasha) 
+#version 0.9.1, 07.01.10 -- clean up, added run_on_host
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -73,21 +74,13 @@ scriptmode="no"
 set=""
 
 qecho() {
-  [[ "$quiet" = "no" ]] && echo "$*"
+  [[ "$quiet" = "no" ]] && echo -e "$*"
 }
 
 die() {
-  echo "$*" >&2
+  echo -e "$*" >&2
   exit 1
 }
-
-clean_up() {
-  [[ -n "$batchname" ]] && \
-    [[ "$batchname" != "/dev/stdout" ]] && \
-    [[ -f "$batchname" ]] && \
-    rm $batchname
-}
-trap "clean_up" 1 2 3 6 15
 
 if [ "${SHELL##*/}" = "bash" ]  || [ "${SHELL##*/}" = "zsh" ]; then
   sh_cmd="export SGE_ROOT=/opt/SGE"
@@ -97,11 +90,23 @@ else
   die "Your shell ($SHELL) is not supported yet"
 fi
 
+run_on_host() {
+  local message ssh
+  [ "$1" = "--show" ] && { shift;ssh="echo "; }
+  [ -z "$1" ] && die "run_on_host: Missing argument"
+  if [ "$HOSTNAME" = "$runhost" ]; then
+    ssh+="bash -c"
+  else
+    ssh+="ssh $runhost"
+  fi
+  message=$($ssh "${sh_cmd}; $*") || die "$ssh '${sh_cmd}; $*' failed\nError message: $message"
+  echo -e "$message"
+}
+
 check_job() {
   local message
   number_check "$1" "--checkjob"
-  message=$(ssh $runhost "${sh_cmd};$qstat -u $USER") || \
-    die "ssh $runhost '${sh_cmd};$qstat -u $USER' failed"
+  message=$(run_on_host "$qstat -u $USER") || die
   if [ -z "$(echo -e "$message" | awk "(\$1==$1){print \$0}")" ]; then
     qecho "Job '$1' on $runhost NOT found"
     return 1
@@ -128,7 +133,7 @@ check_shell() {
 pcheck_job() {
   local job_id myjobs failed
   [ -n "$1" ] || die "pcheck_job: No pattern given"
-  myjobs="$(print_jobids $1)"
+  myjobs="$(print_jobids $1)" || die
   if [ -z "$myjobs" ]; then 
     qecho "No jobs matching $1 found" 
     return 1
@@ -143,24 +148,24 @@ pcheck_job() {
 
 kill_job() {
   number_check "$1" "--killjob"
-  ssh $runhost "${sh_cmd};$qdel $1" || \
-    die "ssh $runhost '${sh_cmd};$qdel $1' failed"
+  run_on_host "$qdel $1"
+  return $?
 }
 
 print_jobids() {
   local message job_id
   [ -n "$1" ] || die "print_jobids: Expect a pattern"
-  message=$(ssh $runhost "${sh_cmd};$qstat -u $USER") || \
-    die "ssh $runhost '${sh_cmd};$qstat -u $USER' failed"
+  message=$(run_on_host "$qstat -u $USER") || die
   for job_id in $(echo -e "$message" | awk "(\$3 ~ /${1:0:8}/){print \$1}"); do
     echo $job_id
   done
 }
 
 pkill_job() {
-  local job_id failed
+  local job_id failed myjobs
   [ -n "$1" ] || die "pkill_job: Expect a pattern"
-  for job_id in $(print_jobids $1); do
+  myjobs="$(print_jobids $1)" || die
+  for job_id in $myjobs; do
     kill_job $job_id || failed="yes"
   done
   [ "$failed" = "yes" ] || return 1
@@ -169,6 +174,7 @@ pkill_job() {
 
 number_check(){
   local number option
+  [ -z "$1" ] && die "number_check: Missing argument"
   number="$1"
   option="$2"
   [ -z "$number" ] && die "Missing number in $option"
@@ -187,8 +193,8 @@ queue_info() {
   else
     die "Number of cpus unsupported"
   fi
-  ssh $runhost "${sh_cmd};$qstat -q $queue" || \
-    die "ssh $runhost '${sh_cmd};$qstat -q $queue' failed"
+  run_on_host "$qstat -q $queue"
+  return $? 
 }
 
 showhelp() {
@@ -288,15 +294,15 @@ eoh
 }
 
 show_jobs() {
-  ssh $runhost "${sh_cmd};$qstat -u $USER" || \
-    die "ssh $runhost '${sh_cmd};$qstat -u $USER' failed"
+  run_on_host "$qstat -u $USER"
+  return $?
 }
 
 show_logs() {
   local message path logfile
+  [ -z "$2" ] && die "show_logs: Missing argument"
   number_check "$1" "--showlog/--taillog"
-  message=$(ssh $runhost "${sh_cmd};$qstat -r -j $1") || \
-    die "ssh $runhost '${sh_cmd};$qstat -r -j $1' failed"
+  message=$(run_on_host "$qstat -r -j $1") || die
   path=$(echo -e "$message" | awk '/^cwd/{ print $2}')
   logfile=$(echo -e "$message" | awk '/^stdout_path_list:/{ print $2}')
   $2 $path/$logfile
@@ -305,9 +311,9 @@ show_logs() {
 
 show_path() {
   local message path
+  [ -z "$1" ] && die "show_path: Missing argument"
   number_check "$1" "--showdir"
-  message=$(ssh $runhost "${sh_cmd};$qstat -r -j $1") || \
-    die "ssh $runhost '${sh_cmd};$qstat -r -j $1' failed"
+  message=$(run_on_host "$qstat -r -j $1") || die
   path=$(echo -e "$message" | awk '/^cwd/{ print $2}')
   [ -z "$path" ] && die "show_path: Could not get path"
   echo "$path"
@@ -600,13 +606,12 @@ fi
 [[ -z "$finish_file" ]] || echo "[ \$result -eq 0 ] && touch $finish_file" >> $batchname
 
 if [ "$run" = "no" ]; then
-  [[ "$batchname" != "/dev/stdout" ]] && echo "ssh $runhost '${sh_cmd};cd $PWD;$qsub $qsub_opts $batchname'"
+  [[ "$batchname" != "/dev/stdout" ]] && run_on_host --show "cd $PWD;$qsub $qsub_opts $batchname'"
   exit 0
 fi
 
 if [ -n "${sh_cmd}" ]; then
-  message="$(ssh $runhost "${sh_cmd};cd $PWD;$qsub $qsub_opts $batchname")" || \
-    die "${message}\nssh $runhost '${sh_cmd};cd $PWD;$qsub $qsub_opts $batchname' failed"
+  message="$(run_on_host "cd $PWD;$qsub $qsub_opts $batchname")" || die
   qecho "$message"
 else
   echo "Your shell ($SHELL) is not supported yet" >&2
