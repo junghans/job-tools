@@ -9,6 +9,7 @@
 #version 0.1.6, 30.11.09 -- fixed bug in number parsing
 #version 0.1.6, 07.12.09 -- fixed bug in resub (thx to manuel) 
 #version 0.2.0, 07.01.09 -- major reworked, nicer jobs status
+#version 0.2.1, 08.01.09 -- added some useful messages + --walltime
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -21,6 +22,7 @@ mpirun_cmd="/usr/bin/poe"
 runhost="vip"
 real_runhost="vip001"
 ncpus=32
+wall_time="24:00:00"
 name="ll"
 quiet="no"
 auto="no"
@@ -205,6 +207,8 @@ MPI OPTIONS:
 -N, --NNNN           Number of cpus (also determines the queue)
                      Default: $ncpus
     --nompirun       Do NOT add mpirun automatically to the command line for ncpus > 1
+    --walltime TIME  Change wall clock time (try 00:30:00 for express queue)
+                     Default: $wall_time
 
 
 JOBS OPTIONS:
@@ -284,6 +288,7 @@ copy_back() {
   [ -f "$1" ] || die "$1 not found"
   [ -z "$(grep llstart $1)" ] && die "$1 seems NOT to be a llstart script"
   path="$(awk '/^cd/{print $2}' $1)"
+  echo Copying back data from $runhost:$path/ to .
   scp -Cr $runhost:$path/* . || \
     die "scp -Cr $runhost:./$path/* . failed"
   return $?
@@ -380,6 +385,10 @@ while [ "${1#-}" != "$1" ]; do
    --nompirun )
    mpirun="no"
    shift ;;
+   --walltime )
+   wall_time="$2"
+   [ -z "${wall_time/[0-9][0-9]:[0-9][0-9]:[0-9][0-9]}" ] || die "Wall clock time should have the format HH:MM:SS"
+   shift 2;;
    --showdir )
    show_path $2
    exit $?;;
@@ -474,7 +483,7 @@ cat <<EOF >> $batchname
 #on $(date)
 #using $($0 --version)
 # @ shell = /bin/bash
-# @ wall_clock_limit= 24:00:00
+# @ wall_clock_limit= $wall_time
 # @ job_type = parallel
 # @ node_usage= not_shared
 # @ tasks_per_node = 32
@@ -544,7 +553,7 @@ if [ "${HOSTNAME}" != "$real_runhost" ]; then
    message=$(run_on_host "[ -d \$HOME/$sim_base/$batchname ] || echo Good") || die
    [ "$message" = "Good" ] || die "$runhost:\$HOME/$sim_base/$batchname exists"
    run_on_host "mkdir -p \$HOME/$sim_base/$batchname" || die "mkdir failed"
-   echo Copying needed files
+   echo Copying needed files to $runhost:./$sim_base/$batchname/
    scp -Cr $filelist $batchname $runhost:./$sim_base/$batchname/ || \
      die "scp -Cr $filelist $batchname $runhost:./$sim_base/$batchname/ failed"
 fi
@@ -558,6 +567,7 @@ message="$(run_on_host "cd $sim_dir;$job_submit $batchname")" || die
 qecho "$message"
 
 if [ "$wait" = "yes" ]; then
+  sleep 10
   job_id="$(print_jobids $batchname)"
   [[ -z "$job_id" ]] && die "Oh oh could not fetch job_id"
   qecho "Waiting for $batchname ($job_id) to finish"
@@ -566,5 +576,7 @@ if [ "$wait" = "yes" ]; then
     sleep $sleeptime;
   done
   copy_back $batchname
+  [[ -n "${finish_file}" ]] && [[ ! -f "$finish_file" ]] && exit 1
+  [[ -n "${resub}" ]] && [[ ! -f "$resub" ]] && exit 1
   exit 0
 fi
