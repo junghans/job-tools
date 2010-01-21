@@ -456,7 +456,7 @@ done
 
 [ -z "$1" ] && die "Missing program name (try --help)"
 
-[[ $auto = "yes" ]] && name=$1
+[[ $auto = "yes" ]] && name=${1##*/}
 
 
 if [ -z "$batchname" ]; then
