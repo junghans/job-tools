@@ -63,7 +63,7 @@ run_on_host() {
   else
     ssh+="ssh $runhost"
   fi
-  message=$($ssh "$*") || die "$ssh '$*' failed\nError message: $message"
+  message=$($ssh "$*" 2>&1) || die "$ssh '$*' failed\nError message: $message"
   [ -z "$message" ] || echo -e "$message"
 }
 
@@ -416,6 +416,9 @@ while [ "${1#-}" != "$1" ]; do
    exit $?;;
    --killjob )
    kill_job $2
+   exit $?;;
+   --getjid )
+   print_jobids "$2"
    exit $?;;
    --pkill )
    pkill_job "$2"

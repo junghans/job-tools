@@ -101,7 +101,7 @@ run_on_host() {
   else
     ssh+="ssh $runhost"
   fi
-  message=$($ssh "${sh_cmd}; $*") || die "$ssh '${sh_cmd}; $*' failed\nError message: $message"
+  message=$($ssh "${sh_cmd}; $*" 2>&1) || die "$ssh '${sh_cmd}; $*' failed\nError message: $message"
   echo -e "$message"
 }
 
