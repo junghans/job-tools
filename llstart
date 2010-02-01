@@ -254,9 +254,9 @@ Examples:
    ${0##*/} --32 -p sleep 30
    ${0##*/} -8p --nompirun poe sleep 30
    ${0##*/} --name gromacs mdrun -v
-   ${0##*/} --32 --needed traj.trr mdrun
+   ${0##*/} --32 --needed topol.tpr mdrun
    ${0##*/} "echo -e \"SOL\nSOL\" | g_rdf -b 100 -n index.ndx"
-   ${0##*/} -8 --resub confout.gro  mdrun -append -cpi state.cpt -maxh 36
+   ${0##*/} --32 --resub confout.gro --needed topol.tpr  mdrun -append -cpi state.cpt -maxh 36
             (Note: -cpi is smart, the first time mdrun will start normal!)         
    ${0##*/} --32 --needed '*' --resub confout.gro  mdrun -append -cpi state.cpt -maxh 35
             (Note: --needed '*' needs a separate dir for the simulation!)

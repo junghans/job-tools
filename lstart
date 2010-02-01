@@ -275,6 +275,13 @@ COMMON OPTIONS:
 -v, --version         Prints version
 -h, --help            Show this help message
 
+Examples:
+   ${0##*/} -8p sleep 30
+   ${0##*/} -p sleep 30
+   ${0##*/} --name gromacs mdrun -v
+   ${0##*/} mdrun
+   ${0##*/} "echo -e \"SOL\nSOL\" | g_rdf -b 100 -n index.ndx"
+
 Send comments and bugs to: junghans@mpip-mainz.mpg.de
 eoh
 }
