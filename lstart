@@ -42,6 +42,7 @@
 #version 3.7.2 23.09.09 -- added header to batch file, which to type
 #version 3.7.3 30.11.09 -- fixed a bug in check_exist + source bashrc
 #version 3.8.0 22.01.10 -- major clean up
+#version 3.8.1 22.01.10 -- rm batchname, when crashing
 
 
 ##########################################
@@ -84,6 +85,7 @@ qecho() {
 
 die() {
   echo -e "$*" >&2
+  [ -n "$batchname" ] && [ -f "$batchname" ] && rm -f "$batchname" && die "batchname $batchname removed"
   exit 1
 }
 
