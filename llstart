@@ -11,6 +11,7 @@
 #version 0.2.0, 07.01.09 -- major reworked, nicer jobs status
 #version 0.2.1, 08.01.09 -- added some useful messages + --walltime
 #version 0.2.2, 11.01.10 -- added --source option + cmdline in script + ibm hacks
+#version 0.2.3, 01.02.10 -- rm batchname, when crashing, resub warning
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -51,6 +52,7 @@ qecho() {
 
 die() {
   echo -e "$*" >&2
+  [ -n "$batchname" ] && [ -f "$batchname" ] && rm -f "$batchname" && die "batchname $batchname removed"
   exit 1
 }
 
@@ -584,6 +586,7 @@ EOF
 [[ "$time" = "yes" ]] && echo date >> $batchname
 
 if [ -n "$resub" ]; then
+  [ -f "$resub" ] && die "Resub is already there, unlogical !"
   if [ "$batchname" = "/dev/stdout" ]; then
     echo Error: Resub and print options make no sense together >&2
     echo Error: Filename after $job_submit in next line will be wrong !!! >&2
