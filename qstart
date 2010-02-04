@@ -40,6 +40,7 @@
 #version 0.9.1, 07.01.10 -- clean up, added run_on_host
 #version 0.9.2, 11.01.10 -- added --source option + cmdline in script
 #version 0.9.3, 01.02.10 -- rm batchname, when crashing, resub warning
+#version 0.9.4, 04.02.10 -- added some checks for .*shrc files + removed sh_cmd
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -86,14 +87,6 @@ die() {
   exit 1
 }
 
-if [ "${SHELL##*/}" = "bash" ]  || [ "${SHELL##*/}" = "zsh" ]; then
-  sh_cmd="export SGE_ROOT=/opt/SGE"
-elif [ "${SHELL##*/}" = "tcsh" ]; then
-  sh_cmd="setenv SGE_ROOT /opt/SGE"
-else
-  die "Your shell ($SHELL) is not supported yet"
-fi
-
 run_on_host() {
   local message ssh
   [ "$1" = "--show" ] && { shift;ssh="echo "; }
@@ -103,7 +96,7 @@ run_on_host() {
   else
     ssh+="ssh $runhost"
   fi
-  message=$($ssh "${sh_cmd}; $*" 2>&1) || die "$ssh '${sh_cmd}; $*' failed\nError message: $message"
+  message=$($ssh "$*" 2>&1) || die "$ssh '$*' failed\nError message: $message"
   echo -e "$message"
 }
 
@@ -120,17 +113,6 @@ check_job() {
   else
     qecho "Job '$1' on $runhost found"
     return 0
-  fi
-}
-
-check_shell() {
-  if [ "$myshell" = "none" ] || \
-     [ "$myshell" = "bash" ] || \
-     [ "$myshell" = "tcsh" ] || \
-     [ "$myshell" = "zsh" ]; then
-    :
-  else
-    die "Your shell is not supported yet"
   fi
 }
 
@@ -471,7 +453,6 @@ while [ "${1#-}" != "$1" ]; do
 done
 
 [ -z "$1" ] && die "Missing program name (try --help)"
-check_shell
 
 [[ $auto = "yes" ]] && name=${1##*/}
 
@@ -547,9 +528,17 @@ cat <<EOF >>$batchname
 
 EOF
 
-[[ "$myshell" = "bash" ]] && echo "source ~/.bashrc" >> $batchname
-[[ "$myshell" = "zsh" ]] && echo "source ~/.zshrc" >> $batchname
-[[ "$myshell" = "tcsh" ]] && echo "source ~/.cshrc" >> $batchname
+if [ "$myshell" = "bash" ]; then
+  [ -f "~/.bashrc" ] && echo "source ~/.bashrc" >> $batchname
+elif [ "$myshell" = "zsh" ]; then
+  [ -f "~/.bashrc" ] && echo "source ~/.zshrc" >> $batchname
+elif [ "$myshell" = "tcsh" ]; then
+  if [ -f "~/.tcshrc" ]; then
+    echo "source ~/.tcshrc" >> $batchname
+  elif [ -f "~/.cshrc" ]; then
+    echo "source ~/.tcshrc" >> $batchname
+  fi
+fi
 
 cat <<EOF >>$batchname
 
@@ -623,16 +612,8 @@ if [ "$run" = "no" ]; then
   exit 0
 fi
 
-if [ -n "${sh_cmd}" ]; then
-  message="$(run_on_host "cd $PWD;$qsub $qsub_opts $batchname")" || die
-  qecho "$message"
-else
-  echo "Your shell ($SHELL) is not supported yet" >&2
-  echo "Logon $runhost and do:" >&2
-  echo " cd $PWD" >&2
-  echo " $qsub $batchname" >&2
-  exit 1
-fi
+message="$(run_on_host "cd $PWD;$qsub $qsub_opts $batchname")" || die
+qecho "$message"
 
 if [ "$wait" = "yes" ]; then
   job_id="$(echo "${message}" | sed -n 's/^Your job \([0-9]*\) (".*$/\1/p')" 
