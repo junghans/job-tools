@@ -571,7 +571,7 @@ renice $nice -p \$\$
 cd $PWD
 eof
 
-[[ "$myshell" = "bash" ]] && echo "source ~/.bashrc" >> $batchname
+[[ "$myshell" = "bash" ]] && [ -f "~/.bashrc" ] && echo "source ~/.bashrc" >> $batchname
 [ $ncpus -gt 1 ] && [ "$mpitype" == "LAM" ] && echo "lamboot" >> $batchname
 [[ "$time" = "yes" ]] && echo date >> $batchname
 
