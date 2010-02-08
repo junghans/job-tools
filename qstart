@@ -92,9 +92,9 @@ run_on_host() {
   [ "$1" = "--show" ] && { shift;ssh="echo "; }
   [ -z "$1" ] && die "run_on_host: Missing argument"
   if [ "$HOSTNAME" = "$runhost" ]; then
-    ssh+="bash -c"
+    ssh="${ssh}bash -c"
   else
-    ssh+="ssh $runhost"
+    ssh="${ssh}$runhost"
   fi
   message=$($ssh "$*" 2>&1) || die "$ssh '$*' failed\nError message: $message"
   echo -e "$message"
@@ -314,7 +314,7 @@ shopt -s extglob
 
 cmdline="${0##*/}"
 for i in "$@"; do
-  cmdline+=" '$i'"
+  [ -z "${i//*[[:space:]]*}" ] && cmdline="${cmdline} '$i'" || cmdline="${cmdline} $i"
 done
 while [ "${1#-}" != "$1" ]; do
   if [ "${1#--}" = "$1" ] && [ -n "${1:2}" ]; then
