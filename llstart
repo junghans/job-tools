@@ -2,12 +2,12 @@
 
 #version 0.1   ,02.09.09 -- initial version from qstart
 #version 0.1.1 ,18.09.09 -- added header in script
-#version 0.1.2 ,14.10.09 -- missing number check 
-#version 0.1.3 ,12.11.09 -- fixed a bug in option parsing 
+#version 0.1.2 ,14.10.09 -- missing number check
+#version 0.1.3 ,12.11.09 -- fixed a bug in option parsing
 #version 0.1.4 ,12.11.09 -- 32 cpus is a long option now
 #version 0.1.5, 24.11.09 -- added --showdir + better output in logfile
 #version 0.1.6, 30.11.09 -- fixed bug in number parsing
-#version 0.1.6, 07.12.09 -- fixed bug in resub (thx to manuel) 
+#version 0.1.6, 07.12.09 -- fixed bug in resub (thx to manuel)
 #version 0.2.0, 07.01.09 -- major reworked, nicer jobs status
 #version 0.2.1, 08.01.09 -- added some useful messages + --walltime
 #version 0.2.2, 11.01.10 -- added --source option + cmdline in script + ibm hacks
@@ -89,8 +89,8 @@ pcheck_job() {
   local job_id myjobs failed
   [ -n "$1" ] || die "pcheck_job: No pattern given"
   myjobs="$(print_jobids $1)" || die
-  if [ -z "$myjobs" ]; then 
-    qecho "No jobs matching $1 found" 
+  if [ -z "$myjobs" ]; then
+    qecho "No jobs matching $1 found"
     return 1
   fi
   failed="yes"
@@ -203,7 +203,7 @@ SCRIPT OPTIONS:
                      Default: $sim_base
 		     So simulation will be done in \$HOME/$sim_base/\$(mktemp ${name}$template)
 		     (Replaced by \$PWD if you run ${0##*/} on $runhost)
-    --shell NAME     Change the shell to use, script will sources ~/.XXXrc   
+    --shell NAME     Change the shell to use, script will sources ~/.XXXrc
                      Default: $myshell
     --source FILE    Source this file before run the progam
     --needed FILES   Give the files needed to be copy to the scratch dir to
@@ -243,7 +243,7 @@ COMMON OPTIONS:
 Notes for scratch space :
 ------------------------
 -The usage of the scratch space is still at the beginning of testing,
- use it with care! 
+ use it with care!
 -You may add the files to copy there with --needed or use "--needed '*'",
  if your job has a separate dir.
 -Give the full path of binary or add itself to --needed and use "./", if
@@ -257,7 +257,7 @@ Examples:
    ${0##*/} --32 --needed topol.tpr mdrun
    ${0##*/} "echo -e \"SOL\nSOL\" | g_rdf -b 100 -n index.ndx"
    ${0##*/} --32 --resub confout.gro --needed topol.tpr  mdrun -append -cpi state.cpt -maxh 36
-            (Note: -cpi is smart, the first time mdrun will start normal!)         
+            (Note: -cpi is smart, the first time mdrun will start normal!)
    ${0##*/} --32 --needed '*' --resub confout.gro  mdrun -append -cpi state.cpt -maxh 35
             (Note: --needed '*' needs a separate dir for the simulation!)
 
@@ -569,7 +569,7 @@ EOF
 if [ "$scriptmode" = "yes" ]; then
   for i in $@; do
     [ -f "$i" ] || die "File '$i' not found"
-    cat "$i" >> $batchname 
+    cat "$i" >> $batchname
   done
 elif [ "$mpirun" = "no" ] || [ $ncpus -eq 1 ]; then
   cmdline="$*"

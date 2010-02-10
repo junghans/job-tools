@@ -32,7 +32,7 @@
 #version 3.6.2 08.10.08 -- notemplate is not emptytemplate
 #version 3.6.3 08.10.08 -- bug in --name
 #version 3.6.4 08.10.08 -- bug in short opts
-#version 3.6.5 08.10.08 -- bug in show_jobs with empty lines 
+#version 3.6.5 08.10.08 -- bug in show_jobs with empty lines
 #version 3.6.6 08.10.08 -- added --header
 #version 3.6.7 08.10.08 -- added --show_job
 #version 3.6.8 08.10.08 -- bug in --checkjob for remote
@@ -106,8 +106,8 @@ pcheck_job() {
   local job_id myjobs failed
   [ -n "$1" ] || die "pcheck_job: No pattern given"
   myjobs="$(print_jobids $1)" || die
-  if [ -z "$myjobs" ]; then 
-    qecho "No jobs matching $1 found" 
+  if [ -z "$myjobs" ]; then
+    qecho "No jobs matching $1 found"
     return 1
   fi
   failed="yes"
@@ -147,7 +147,7 @@ check_jobfile() {
 }
 
 job_exist() {
-  [ -z "$1" ] && die "job_exist: Missing argument" 
+  [ -z "$1" ] && die "job_exist: Missing argument"
   check_jobfile
   [ -z "$(awk -v id="$1" '($1==id){print $0}' $jobfile)" ] && die "Job $1 not found !"
   return 0
@@ -155,7 +155,7 @@ job_exist() {
 
 kill_job() {
   local runhost pid gpid pids
-  [ -z "$1" ] && die "kill_job: Missing argument" 
+  [ -z "$1" ] && die "kill_job: Missing argument"
   runhost=$(show_column $1 2) || die
   pid=$(show_column $1 3) || die
   $(run_on_host "ps --ppid $pid -o pid= | xargs kill") || \
@@ -214,7 +214,7 @@ START OPTIONS:
                       default: log_"batchname"
     --template TEXT   Change template for mktemp
                       Default: $template
--a, --auto            Use first argument as global name 
+-a, --auto            Use first argument as global name
 -e, --emptytemplate   Same as --template ""
 -m, --mail NAME       send mail to NAME
                       default: '$mail'
@@ -231,7 +231,7 @@ START OPTIONS:
                       default: '$nice'
     --lines           change number of last lines of the logfile in the mail
                       default: '$lines'
-    --shell NAME      Change the shell to use, script will sources ~/.XXXrc   
+    --shell NAME      Change the shell to use, script will sources ~/.XXXrc
                       Default: $myshell
 -w, --wait            Waits for the job to finish
                       Exit status from existence of FILE from --finish
@@ -249,7 +249,7 @@ MPI OPTIONS:
 
 REMOTE OPTIONS:
 -r, --runat HOST      run on HOST instead of localhost
--b, --best            run Program on the maschine with the 
+-b, --best            run Program on the maschine with the
                       lowest load (uses '$mpilist')
 
 JOBS OPTIONS:
