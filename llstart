@@ -555,7 +555,7 @@ export LAPI_DEBUG_ENABLE_RDMA_AFFINITY=YES # also try NO
 #END IBM HACKS
 
 EOF
-[[ "$myshell" = "bash" ]] && echo "[ -f '~/.bashrc' ] && source ~/.bashrc" >> $batchname
+[[ "$myshell" = "bash" ]] && echo "[ -f ~/.bashrc ] && source ~/.bashrc" >> $batchname
 
 cat <<EOF >>$batchname
 
