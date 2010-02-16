@@ -458,11 +458,17 @@ done
 [[ $auto = "yes" ]] && name=${1##*/}
 
 if [ -z "$batchname" ]; then
-  if [ -n $(type -p mktemp) ]; then
+  if [ -n "$(type -p mktemp)" ]; then
     batchname=$(mktemp ${name}${template}) || die "mktemp could not generate file"
   else
     echo No mktemp found >&2
-    batchname=$name
+    l=${template//[^X]}
+    l=${#l}
+    t2=${template}
+    for ((i=0;i<$l;i++)); do
+      t2=${t2/X/${RANDOM:0:1}}
+    done
+    batchname=${name}${t2}
   fi
 fi
 
