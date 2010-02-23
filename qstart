@@ -42,6 +42,7 @@
 #version 0.9.3, 01.02.10 -- rm batchname, when crashing, resub warning
 #version 0.9.4, 04.02.10 -- added some checks for .*shrc files + removed sh_cmd
 #version 0.9.5, 10.02.10 -- make resub work in tcsh (thx to christine)
+#version 0.9.6, 23.02.10 -- added #S in script, fixed --norun 
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -95,7 +96,7 @@ run_on_host() {
   if [ "$HOSTNAME" = "$runhost" ]; then
     ssh="${ssh}bash -c"
   else
-    ssh="${ssh}$runhost"
+    ssh="${ssh}ssh $runhost"
   fi
   message=$($ssh "$*" 2>&1) || die "$ssh '$*' failed\nError message: $message"
   echo -e "$message"
@@ -485,8 +486,6 @@ if [ "$batchname" != "/dev/stdout" ]; then
   qecho "logfile: $logfile"
 fi
 
-#TCSH changes go here
-#first line, source, for loop?
 if [ "$myshell" = "bash" ] || [ "$myshell" = "none" ]; then
   echo "#! /bin/bash" > $batchname
 elif [ "$myshell" = "zsh" ]; then
@@ -505,6 +504,13 @@ cat <<EOF >>$batchname
 
 #sge options
 EOF
+if [ "$myshell" = "bash" ] || [ "$myshell" = "none" ]; then
+  echo "# -S /bin/bash" >> $batchname
+elif [ "$myshell" = "zsh" ]; then
+  echo "# -S /usr/bin/zsh" >> $batchname
+elif [ "$myshell" = "tcsh" ]; then
+  echo "# -S /bin/tcsh" >> $batchname
+fi
 if [ $ncpus -eq 1 ]; then
   echo "#$ -q all.q" >> $batchname
 elif [ $ncpus -eq 2 ]; then
