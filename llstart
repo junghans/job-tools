@@ -221,10 +221,10 @@ MPI OPTIONS:
 
 JOBS OPTIONS:
     --showjobs        Show jobs running (on $runhost)
-    --checkjob JOB_ID Return true if job is still running (useful with --f)
+    --checkjob JOB_ID Return true if job is still running (useful with -f)
                       "while ${0##*/} -q --checkjob JOB_ID; do :; done"
     --pcheck PATTERN  Return true if at least one job matching a pattern is still running
-                      PATTERN is search in the simname (useful with --f)
+                      PATTERN is search in the simname (useful with -f)
                       "while ${0##*/} -q --checkjob NAME; do :; done"
     --showlog  JOB_ID Show logfile for running job with number JOB_ID
     --showdir  JOB_ID Show pwd of simulation

@@ -58,7 +58,7 @@ qstat="$sge_path/qstat"
 qdel="$sge_path/qdel"
 runhost="thop100"
 ncpus=1
-wall_time="32:00:00"
+wall_time="36:00:00"
 name="q"
 quiet="no"
 auto="no"
@@ -232,7 +232,7 @@ MPI OPTIONS:
 -N                   Number of cpus (also determines the queue)
                      Default: $ncpus
     --nompirun       Do NOT add mpirun automatically to the command line for ncpus > 1
-    --walltime TIME  Change wall clock time (try 00:30:00 for express queue)
+    --walltime TIME  Change wall clock time
                      Default: $wall_time
     --runat HOST     Specify the host to run yourself
     --runatnow HOST  like --runat, but one do it one time, not after the resub
@@ -240,10 +240,10 @@ MPI OPTIONS:
 
 JOBS OPTIONS:
     --showjobs        Show jobs running (on $runhost)
-    --checkjob JOB_ID Return true if job is still running (useful with --f)
+    --checkjob JOB_ID Return true if job is still running (useful with -f)
                       "while ${0##*/} -q --checkjob JOB_ID; do :; done"
     --pcheck PATTERN  Return true if at least one job matching a pattern is still running
-                      PATTERN is search in the name column (useful with --f)
+                      PATTERN is search in the name column (useful with -f)
                       "while ${0##*/} -q --pcheck NAME; do :; done"
     --showlog  JOB_ID Show logfile for running job with number JOB_ID
     --showdir  JOB_ID Show pwd of simulation
