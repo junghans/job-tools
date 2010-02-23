@@ -58,6 +58,7 @@ qstat="$sge_path/qstat"
 qdel="$sge_path/qdel"
 runhost="thop100"
 ncpus=1
+wall_time="32:00:00"
 name="q"
 quiet="no"
 auto="no"
@@ -231,6 +232,8 @@ MPI OPTIONS:
 -N                   Number of cpus (also determines the queue)
                      Default: $ncpus
     --nompirun       Do NOT add mpirun automatically to the command line for ncpus > 1
+    --walltime TIME  Change wall clock time (try 00:30:00 for express queue)
+                     Default: $wall_time
     --runat HOST     Specify the host to run yourself
     --runatnow HOST  like --runat, but one do it one time, not after the resub
 
@@ -400,6 +403,10 @@ while [ "${1#-}" != "$1" ]; do
    --nompirun )
    mpirun="no"
    shift ;;
+   --walltime )
+   wall_time="$2"
+   [ -z "${wall_time/[0-9][0-9]:[0-9][0-9]:[0-9][0-9]}" ] || die "Wall clock time should have the format HH:MM:SS"
+   shift 2;;
    --runat )
    hostname="$2"
    shift 2;;
@@ -538,6 +545,7 @@ cat <<EOF >>$batchname
 #$ -cwd
 #$ -j y
 #$ -o $logfile
+#$ -l h_rt=${wall_time}
 
 EOF
 
