@@ -12,6 +12,7 @@
 #version 0.2.1, 08.01.09 -- added some useful messages + --walltime
 #version 0.2.2, 11.01.10 -- added --source option + cmdline in script + ibm hacks
 #version 0.2.3, 01.02.10 -- rm batchname, when crashing, resub warning
+#version 0.2.4, 25.02.10 -- added --smt option
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -24,6 +25,7 @@ mpirun_cmd="/usr/bin/poe"
 runhost="vip"
 real_runhost="vip001"
 ncpus=32
+smt=1
 wall_time="24:00:00"
 name="ll"
 quiet="no"
@@ -213,6 +215,7 @@ SCRIPT OPTIONS:
 MPI OPTIONS:
 -N, --NNNN           Number of cpus (also determines the queue)
                      Default: $ncpus
+    --smt            Use multithreading (two tasks per cpu)
     --nompirun       Do NOT add mpirun automatically to the command line for ncpus > 1
     --walltime TIME  Change wall clock time (try 00:30:00 for express queue)
                      Default: $wall_time
@@ -323,6 +326,9 @@ while [ "${1#-}" != "$1" ]; do
    ncpus=${1#-}
    ncpus=${ncpus#-}
    number_check "$ncpus" "$1"
+   shift;;
+  --smt )
+   smt="2"
    shift;;
   -p | --print )
    batchname="/dev/stdout"
@@ -514,10 +520,10 @@ cat <<EOF >> $batchname
 # @ wall_clock_limit= $wall_time
 # @ job_type = parallel
 # @ node_usage= not_shared
-# @ tasks_per_node = 32
+# @ tasks_per_node = $((32*$smt))
 # @ network.MPI = sn_all,not_shared,us
 # @ task_affinity = core(1)
-# @ resources = ConsumableMemory(1600 mb)
+# @ resources = ConsumableCpus(1)ConsumableMemory(1600 mb)
 # @ node = $nnodes
 # @ class = $queue_name
 # @ error = $logfile
