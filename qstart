@@ -557,7 +557,7 @@ elif [ "$myshell" = "tcsh" ]; then
   if [ -f ~/.tcshrc ]; then
     echo "source ~/.tcshrc" >> $batchname
   elif [ -f ~/.cshrc ]; then
-    echo "source ~/.tcshrc" >> $batchname
+    echo "source ~/.cshrc" >> $batchname
   fi
 fi
 
