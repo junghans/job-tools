@@ -43,6 +43,7 @@
 #version 0.9.4, 04.02.10 -- added some checks for .*shrc files + removed sh_cmd
 #version 0.9.5, 10.02.10 -- make resub work in tcsh (thx to christine)
 #version 0.9.6, 23.02.10 -- added #S in script, fixed --norun 
+#version 0.9.7, 27.04.10 -- fixed a type in #S
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -512,11 +513,11 @@ cat <<EOF >>$batchname
 #sge options
 EOF
 if [ "$myshell" = "bash" ] || [ "$myshell" = "none" ]; then
-  echo "# -S /bin/bash" >> $batchname
+  echo "#$ -S /bin/bash" >> $batchname
 elif [ "$myshell" = "zsh" ]; then
-  echo "# -S /usr/bin/zsh" >> $batchname
+  echo "#$ -S /usr/bin/zsh" >> $batchname
 elif [ "$myshell" = "tcsh" ]; then
-  echo "# -S /bin/tcsh" >> $batchname
+  echo "#$ -S /bin/tcsh" >> $batchname
 fi
 if [ $ncpus -eq 1 ]; then
   echo "#$ -q all.q" >> $batchname
