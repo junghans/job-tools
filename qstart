@@ -44,6 +44,7 @@
 #version 0.9.5, 10.02.10 -- make resub work in tcsh (thx to christine)
 #version 0.9.6, 23.02.10 -- added #S in script, fixed --norun 
 #version 0.9.7, 27.04.10 -- fixed a type in #S
+#version 0.9.8, 21.06.10 -- make --wait work with --resub (thx to ananya)
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -640,11 +641,9 @@ message="$(run_on_host "cd $PWD;$qsub $qsub_opts $batchname")" || die
 qecho "$message"
 
 if [ "$wait" = "yes" ]; then
-  job_id="$(echo "${message}" | sed -n 's/^Your job \([0-9]*\) (".*$/\1/p')"
-  [[ -z "$job_id" ]] && die "Oh oh could not fetch job_id"
-  qecho "Waiting for $batchname ($job_id) to finish"
+  qecho "Waiting for $batchname to finish"
   quiet="yes"
-  while check_job $job_id; do
+  while pcheck_job $batchname; do
     sleep $sleeptime;
   done
   [[ -n "${finish_file}" ]] && [[ ! -f "$finish_file" ]] && exit 1
