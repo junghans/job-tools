@@ -45,6 +45,7 @@
 #version 0.9.6, 23.02.10 -- added #S in script, fixed --norun 
 #version 0.9.7, 27.04.10 -- fixed a type in #S
 #version 0.9.8, 21.06.10 -- make --wait work with --resub (thx to ananya)
+#version 0.9.9, 07.07.10 -- added --alljobs (thx to victor)
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -241,7 +242,8 @@ MPI OPTIONS:
 
 
 JOBS OPTIONS:
-    --showjobs        Show jobs running (on $runhost)
+    --showjobs        Show my jobs running (on $runhost)
+    --alljobs         Show all jobs running (on $runhost)
     --checkjob JOB_ID Return true if job is still running (useful with -f)
                       "while ${0##*/} -q --checkjob JOB_ID; do :; done"
     --pcheck PATTERN  Return true if at least one job matching a pattern is still running
@@ -285,11 +287,6 @@ Examples:
 
 Send comments and bugs to: junghans@mpip-mainz.mpg.de
 eoh
-}
-
-show_jobs() {
-  run_on_host "$qstat -u $USER"
-  return $?
 }
 
 show_logs() {
@@ -416,7 +413,10 @@ while [ "${1#-}" != "$1" ]; do
    qsub_opts="$qsub_opts -l hostame=$2"
    shift 2;;
    --showjobs )
-   show_jobs
+   run_on_host "$qstat -u $USER"
+   exit $?;;
+   --alljobs )
+   run_on_host "$qstat"
    exit $?;;
    --killjob )
    kill_job $2
