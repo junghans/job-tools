@@ -46,6 +46,7 @@
 #version 0.9.7, 27.04.10 -- fixed a type in #S
 #version 0.9.8, 21.06.10 -- make --wait work with --resub (thx to ananya)
 #version 0.9.9, 07.07.10 -- added --alljobs (thx to victor)
+#version 0.9.10,07.07.10 -- added connection check
 
 #defaults
 usage="${0##*/} [OPTIONS] COMMAND [options]"
@@ -82,6 +83,7 @@ sleeptime=900
 scriptmode="no"
 extra_source=""
 set=""
+check_runhost="no"
 
 qecho() {
   [[ "$quiet" = "no" ]] && echo -e "$*"
@@ -100,6 +102,11 @@ run_on_host() {
   if [ "$HOSTNAME" = "$runhost" ]; then
     ssh="${ssh}bash -c"
   else
+    if [ "$check_runhost" = "no" ]; then
+      ssh $runhost true || die "Heuristic connection check failed.\nChange runhost variable in ${0} (now set to $runhost)
+       or make an ssh alias using sshalias (from evergreen repo) with 'sshalias -a $runhost=YOURNAME@vip.rzg.mpg.de'"
+      check_runhost="yes"
+    fi
     ssh="${ssh}ssh $runhost"
   fi
   message=$($ssh "$*" 2>&1) || die "$ssh '$*' failed\nError message: $message"
