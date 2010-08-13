@@ -42,48 +42,100 @@
 #version 0.9.3, 01.02.10 -- rm batchname, when crashing, resub warning
 #version 0.9.4, 04.02.10 -- added some checks for .*shrc files + removed sh_cmd
 #version 0.9.5, 10.02.10 -- make resub work in tcsh (thx to christine)
-#version 0.9.6, 23.02.10 -- added #S in script, fixed --norun 
+#version 0.9.6, 23.02.10 -- added #S in script, fixed --norun
 #version 0.9.7, 27.04.10 -- fixed a type in #S
 #version 0.9.8, 21.06.10 -- make --wait work with --resub (thx to ananya)
 #version 0.9.9, 07.07.10 -- added --alljobs (thx to victor)
 #version 0.9.10,07.07.10 -- added connection check
+#version 1.0.0 ,13.08.10 -- major variable renaming added --rcfile option
 
-#defaults
-usage="${0##*/} [OPTIONS] COMMAND [options]"
-qsubmit="qsubmit"
-mpirun="yes"
-hostname=""
-qsub_opts=""
-lamboot="/opt/lam/bin/lamboot"
-mpicmd="/opt/lam/bin/mpirun"
-sge_path="/opt/SGE/bin/lx26-amd64"
-qsub="$sge_path/qsub"
-qstat="$sge_path/qstat"
-qdel="$sge_path/qdel"
-runhost="thop100"
+#BEGIN DEFAULTS
+#defaults options, uncomment and change only the lines you realy need to change
+#keep it in bash style, source must work on this file
+
+############## QUEUE stuff #########
+#path to queue utils need later on
+queue_path="/opt/SGE/bin/lx26-amd64"
+
+#command to submit a job
+submit_cmd="$queue_path/qsub"
+#command to get status
+status_cmd="$queue_path/qstat"
+#commnd to cancel/delete a job
+delete_cmd="$queue_path/qdel"
+#extra options for submit
+submit_opts=""
+#name of the host, where to submit the jobs
+submit_host="thop100"
+#submit the script by default: yes/no
+submit="yes"
+#default number of cpus to use
 ncpus=1
+#default wall clock time
 wall_time="36:00:00"
+#on which node to run by default, empty = no default
+hostname=""
+
+########### MPI stuff ###############
+#should mpirun (or equivalent) be added: yes/no
+mpi_job="yes"
+#the command to add for mpi jobs
+mpirun_cmd="/opt/lam/bin/mpirun"
+#lamboot command
+lamboot_cmd="/opt/lam/bin/lamboot"
+
+############# Script option ########
+#default trunc name of the submit script
 name="q"
-quiet="no"
-auto="no"
-run="yes"
-batchname=""
-logfile=""
-finish_file=""
-time="no"
-scratch_dir="/usr/scratch"
-scratch="no"
+#template to add to the script name
 template="_XXXXX"
-mail="$USER@mpip-mainz.mpg.de"
-header="JOBS ON L.C.A.R.S. (thopXX)"
-resub=""
-myshell="${SHELL##*/}"
-wait="no"
-sleeptime=900
-scriptmode="no"
+#automatically naming of the script: yes/no
+auto="no"
+#add timing commands: yes/no
+time="no"
+#use scratch space by default: yes/no
+scratch="no"
+#base dir to scratch space
+scratch_dir="/usr/scratch"
+#file to create if jobs is finished
+finish_file=""
+#rebsumit the job until this file exists
+resubmit_file=""
+#file to source before running the command
 extra_source=""
+#default option if none are given on the command line
+default_opts=""
+
+########### other options #####
+#be quiet or not: yes/no
+quiet="no"
+#run in script mode: yes/no
+scriptmode="no"
+#wait for the jobs to finish: yes/no
+wait="no"
+#sec to wain in the --wait loop
+sleeptime=900
+#default email adress, empty = no email
+mail="$USER@mpip-mainz.mpg.de"
+#header to show with --showjobs option
+header="JOBS ON L.C.A.R.S. (thopXX)"
+#shell to be used by default, none=bash
+myshell="${SHELL##*/}"
+#END DEFAULTS
+
+#internal options not set in rcfile
+#usage print out
+usage="${0##*/} [OPTIONS] COMMAND [options]"
+#internal for set command, empty for bash, but 'set' for tcsh
 set=""
-check_runhost="no"
+#was the connection already checked
+checked_connection="no"
+#user given script name
+batchname=""
+#user given log file name
+logfile=""
+#rc to read
+rcfile="~/.${0##*/}rc"
 
 qecho() {
   [[ "$quiet" = "no" ]] && echo -e "$*"
@@ -97,17 +149,16 @@ die() {
 
 run_on_host() {
   local message ssh
-  [ "$1" = "--show" ] && { shift;ssh="echo "; }
   [ -z "$1" ] && die "run_on_host: Missing argument"
-  if [ "$HOSTNAME" = "$runhost" ]; then
-    ssh="${ssh}bash -c"
+  if [ "$HOSTNAME" = "$submit_host" ]; then
+    ssh="bash -c"
   else
-    if [ "$check_runhost" = "no" ]; then
-      ssh $runhost true || die "Heuristic connection check failed.\nChange runhost variable in ${0} (now set to $runhost)
-       or make an ssh alias using sshalias (from evergreen repo) with 'sshalias -a $runhost=YOURNAME@vip.rzg.mpg.de'"
-      check_runhost="yes"
+    if [ "$checked_connection" = "no" ]; then
+      ssh $submit_host true || die "Heuristic connection check failed.\nChange runhost variable in ${0} (now set to $submit_host)
+       or make an ssh alias using sshalias (from evergreen repo) with 'sshalias -a $sbumit_host=YOURNAME@vip.rzg.mpg.de'"
+      checked_connection="yes"
     fi
-    ssh="${ssh}ssh $runhost"
+    ssh="ssh $submit_host"
   fi
   message=$($ssh "$*" 2>&1) || die "$ssh '$*' failed\nError message: $message"
   echo -e "$message"
@@ -116,15 +167,15 @@ run_on_host() {
 check_job() {
   local message
   number_check "$1" "--checkjob"
-  message=$(run_on_host "$qstat -u $USER") || die
+  message=$(run_on_host "$status_cmd -u $USER") || die
   if [ -z "$(echo -e "$message" | awk "(\$1==$1){print \$0}")" ]; then
-    qecho "Job '$1' on $runhost NOT found"
+    qecho "Job '$1' on $submit_host NOT found"
     return 1
   elif [ -z "$(echo -e "$message" | awk "(\$1==$1)&&(\$5 !~ /E/){print \$0}")" ]; then
-    qecho "Job '$1' on $runhost in error state"
+    qecho "Job '$1' on $submit_host in error state"
     return 1
   else
-    qecho "Job '$1' on $runhost found"
+    qecho "Job '$1' on $submit_host found"
     return 0
   fi
 }
@@ -147,14 +198,22 @@ pcheck_job() {
 
 kill_job() {
   number_check "$1" "--killjob"
-  run_on_host "$qdel $1"
+  run_on_host "$delete_cmd $1"
   return $?
+}
+
+submit_job() {
+  local message
+  [ -z "$1" ] && die "submit_job: missing argument"
+  [ -f "$1" ] || die "Could not find $1"
+  message="$(run_on_host $show "cd $PWD;$submit_cmd $submit_opts $batchname")" || die
+  qecho "$message"
 }
 
 print_jobids() {
   local message job_id
   [ -n "$1" ] || die "print_jobids: Expect a pattern"
-  message=$(run_on_host "$qstat -u $USER") || die
+  message=$(run_on_host "$status_cmd -u $USER") || die
   for job_id in $(echo -e "$message" | awk "(\$3 ~ /${1:0:8}/){print \$1}"); do
     echo $job_id
   done
@@ -192,22 +251,22 @@ queue_info() {
   else
     die "Number of cpus unsupported"
   fi
-  run_on_host "$qstat -q $queue"
+  run_on_host "$status_cmd -q $queue"
   return $?
 }
 
 showhelp() {
  cat << eoh
 A script to start a job on the cluster.
-It builds a very simple qsub script (see -p options) and
+It builds a very simple submit script (see -p options) and
 run it.
 
 $usage
 
 SCRIPT OPTIONS:
--n, --name NAME      Change global name of script
+-n, --name NAME      Change trunc name of script
                      Default: $name
-    --batch NAME     Change name of the qsub script
+    --batch NAME     Change name of the submit script
                      Default:  \$(mktemp ${name}$template)
                      (Argument is NAME+TEMPLATE)
 -l, --log NAME       Change name of the output file
@@ -216,18 +275,19 @@ SCRIPT OPTIONS:
                      Default: $template
 -a, --auto           Use first argument as name
     --script         Will use the argument as base scripts and concatenate them
-                     (implies --nompirun)
+                     (implies --nompi)
 -e, --emptytemplate  Same as --template ""
 -m, --mail NAME      send mail to NAME
                      default: '$mail'
 -x, --nomail         will not use mail function
 -f, --finish NAME    Touches file NAME when succesfully finished
 -t, --time           Adds a date command before and after the command
--p, --print          Only print the qsub script (implies --norun)
-    --norun          Do NOT run the qsub script in the end
--r, --resub FILE     Resub the script if exit status was 0 and FILE not exist
+-p, --print          Only print the submit script (implies --nosubmit)
+    --nosubmit       Do submit the script, only create it (useful with --submit)
+    --submit   FILE  Submit the script FILE
+-r, --resubmit FILE  Resub the script if exit status was 0 and FILE not exist
 -w, --wait           Waits for the job to finish
-                     Exit status from existence of FILE from --finish or --resub
+                     Exit status from existence of FILE from --finish or --resubmit
     --sleeptime      Changes the sleeptime for --wait
                      Default: $sleeptime
     --shell NAME     Change the shell to use, script will sources ~/.XXXrc
@@ -241,16 +301,17 @@ SCRIPT OPTIONS:
 MPI OPTIONS:
 -N                   Number of cpus (also determines the queue)
                      Default: $ncpus
-    --nompirun       Do NOT add mpirun automatically to the command line for ncpus > 1
+    --nompi          This is NOT a mpi job, so do NOT add mpirun (or equivalent)
+                     to the command line (for ncpus > 1) automatically
     --walltime TIME  Change wall clock time
                      Default: $wall_time
     --runat HOST     Specify the host to run yourself
-    --runatnow HOST  like --runat, but one do it one time, not after the resub
+    --runatnow HOST  like --runat, but one do it one time, not after the resubmitting
 
 
 JOBS OPTIONS:
-    --showjobs        Show my jobs running (on $runhost)
-    --alljobs         Show all jobs running (on $runhost)
+    --showjobs        Show my jobs running (on $submit_host)
+    --alljobs         Show all jobs running (on $submit_host)
     --checkjob JOB_ID Return true if job is still running (useful with -f)
                       "while ${0##*/} -q --checkjob JOB_ID; do :; done"
     --pcheck PATTERN  Return true if at least one job matching a pattern is still running
@@ -268,28 +329,33 @@ JOBS OPTIONS:
 COMMON OPTIONS:
     --               End of options (if program starts with -)
 -q, --quiet          Be quiet
+    --rcfile FILE    Extra setting file with defaults to read
+                     Default: read only $rcfile if exist
+    --showdefaults   Show the default settings before reading $rcfile and the
+                     file given by --rcfile, useful to create own rcfile with:
+		     "${0##*/} --showdefaults > $rcfile"
 -v, --version        Prints version
 -h, --help           Show this help message
 
-Notes for scratch space :
+Notes for usage of scratch space:
 ------------------------
--The usage of the scratch space is still at the beginning of testing,
- use it with care!
--You may add the files to copy there with --needed or use "--needed '*'",
- if your job has a separate dir.
--Give the full path of binary or add itself to --needed and use "./", if
- it is not in your PATH variable.
--Remember to subtract the time needed to copy the files !
+-The usage of the scratch space is complicated, use it with care!
+-You may add the input files to copy to the scratch dir  with --needed 
+ or use "--needed '*'", if want to copy all files of the current dir.
+-If the binary in not in your PATH, give the full path of binary or 
+ add itself to --needed itself and use "./"
+-Remember, copying input files to the scratch dir and output file back here
+ takes time, so substract time needed for that from the wall of the actual simulation!
 
 Examples:
    ${0##*/} -8p sleep 30
-   ${0##*/} -8p --nompirun mpirun -np 8 sleep 30
+   ${0##*/} -8p --nompi mpirun -np 8 sleep 30
    ${0##*/} --name gromacs mdrun -v
    ${0##*/} -8 --needed topol.tpr mdrun
    ${0##*/} "echo -e \"SOL\nSOL\" | g_rdf -b 100 -n index.ndx"
-   ${0##*/} -8 --resub confout.gro  mdrun -append -cpi state.cpt -maxh 36
+   ${0##*/} -8 --resubmit confout.gro  mdrun -append -cpi state.cpt -maxh 36
             (Note: -cpi is smart, the first time mdrun will start normal!)
-   ${0##*/} -8 --needed '*' --resub confout.gro  mdrun -append -cpi state.cpt -maxh 35
+   ${0##*/} -8 --needed '*' --resubmit confout.gro  mdrun -append -cpi state.cpt -maxh 35
             (Note: --needed '*' needs a separate dir for the simulation!)
 
 Send comments and bugs to: junghans@mpip-mainz.mpg.de
@@ -300,7 +366,7 @@ show_logs() {
   local message path logfile
   [ -z "$2" ] && die "show_logs: Missing argument"
   number_check "$1" "--showlog/--taillog"
-  message=$(run_on_host "$qstat -r -j $1") || die
+  message=$(run_on_host "$status_cmd -r -j $1") || die
   path=$(echo -e "$message" | awk '/^cwd/{ print $2}')
   logfile=$(echo -e "$message" | awk '/^stdout_path_list:/{ print $2}')
   $2 $path/$logfile
@@ -311,7 +377,7 @@ show_path() {
   local message path
   [ -z "$1" ] && die "show_path: Missing argument"
   number_check "$1" "--showdir"
-  message=$(run_on_host "$qstat -r -j $1") || die
+  message=$(run_on_host "$status_cmd -r -j $1") || die
   path=$(echo -e "$message" | awk '/^cwd/{ print $2}')
   [ -z "$path" ] && die "show_path: Could not get path"
   echo "$path"
@@ -327,6 +393,12 @@ cmdline="${0##*/}"
 for i in "$@"; do
   [ -z "${i//*[[:space:]]*}" ] && cmdline="${cmdline} '$i'" || cmdline="${cmdline} $i"
 done
+
+if [ -f $rcfile ]; then
+  source $rcfile || die "Error when sourcing $rcfile, correct it or remove it"
+  qecho "I have source $rcfile"
+fi
+
 while [ "${1#-}" != "$1" ]; do
   if [ "${1#--}" = "$1" ] && [ -n "${1:2}" ]; then
     if [ "${1#-[nlmfr]}" != "${1}" ]; then
@@ -336,12 +408,20 @@ while [ "${1#-}" != "$1" ]; do
     fi
  fi
  case $1 in
+  --rcfile )
+   rcfile="$2"
+   source $rcfile || die "Error when sourcing $rcfile, correct it or remove it"
+   qecho "I have source $rcfile"
+   shift 2;;
+  --showdefaults )
+   sed -ne '/^#BEGIN DEFAULTS/,/^#END DEFAULTS/p' $0 | sed -e '1d' -e '$d' -e '/^[^#]/s/^/#/'
+   exit 0;;
   -[0-9] )
    ncpus=${1#-}
    shift;;
   -p | --print )
    batchname="/dev/stdout"
-   run="no"
+   submit="no"
    shift;;
   -q | --quiet )
    quiet="yes"
@@ -363,11 +443,14 @@ while [ "${1#-}" != "$1" ]; do
    shift ;;
   --script )
    scriptmode="yes"
-   mpirun="no"
+   mpi_job="no"
    shift ;;
-   --norun )
-   run="no"
+   --nosubmit | --norun)
+   submit="no"
    shift ;;
+   --submit)
+   submit_job "$2"
+   exit $? ;;
    -e | --emptytemplate )
    template=""
    shift ;;
@@ -384,8 +467,8 @@ while [ "${1#-}" != "$1" ]; do
    -x | --nomail)
    mail=''
    shift ;;
-   -r | --resub)
-   resub="$2"
+   -r | --resub | --resubmit)
+   resubmit_file="$2"
    shift 2;;
    -w | --wait)
    wait="yes"
@@ -406,8 +489,8 @@ while [ "${1#-}" != "$1" ]; do
    --source)
    extra_source="$2"
    shift 2 ;;
-   --nompirun )
-   mpirun="no"
+   --nompirun | --nompi)
+   mpi_job="no"
    shift ;;
    --walltime )
    wall_time="$2"
@@ -417,13 +500,13 @@ while [ "${1#-}" != "$1" ]; do
    hostname="$2"
    shift 2;;
    --runatnow )
-   qsub_opts="$qsub_opts -l hostame=$2"
+   submit_opts="$submit_opts -l hostame=$2"
    shift 2;;
    --showjobs )
-   run_on_host "$qstat -u $USER"
+   run_on_host "$status_cmd -u $USER"
    exit $?;;
    --alljobs )
-   run_on_host "$qstat"
+   run_on_host "$status_cmd"
    exit $?;;
    --killjob )
    kill_job $2
@@ -470,7 +553,10 @@ while [ "${1#-}" != "$1" ]; do
  esac
 done
 
-[ -z "$1" ] && die "Missing program name (try --help)"
+if [ -z "$1" ]; then
+  [ -z "${default_opts}" ] && die "Missing program name (try --help)"
+  set -- ${default_opts}
+fi
 
 [[ $auto = "yes" ]] && name=${1##*/}
 
@@ -498,7 +584,7 @@ if [ -z "$logfile" ]; then
 fi
 
 if [ "$batchname" != "/dev/stdout" ]; then
-  qecho "qsubscript: $batchname"
+  qecho "submit script: $batchname"
   qecho "logfile: $logfile"
 fi
 
@@ -596,16 +682,16 @@ fi
 
 echo echo Starting simulation >> $batchname
 [[ "$time" = "yes" ]] && echo date >> $batchname
-[[ $ncpus -ne 1 ]] && echo "pgrep lamd > /dev/null || $lamboot" >> $batchname
+[[ $ncpus -ne 1 ]] && echo "pgrep lamd > /dev/null || $lamboot_cmd" >> $batchname
 if [ "$scriptmode" = "yes" ]; then
   for i in $@; do
     [ -f "$i" ] || die "File '$i' not found"
     cat "$i" >> $batchname
   done
-elif [ "$mpirun" = "no" ] || [ $ncpus -eq 1 ]; then
+elif [ "$mpi_job" = "no" ] || [ $ncpus -eq 1 ]; then
   echo "$*" >> $batchname
 else
-  echo "$mpicmd -np $ncpus $*" >> $batchname
+  echo "$mpirun_cmd -np $ncpus $*" >> $batchname
 fi
 cat <<EOF >>$batchname
 ${set}result=\$?
@@ -627,25 +713,24 @@ echo Removing scratch dir
 EOF
 fi
 [[ "$time" = "yes" ]] && echo date >> $batchname
-if [ -n "$resub" ]; then
-  [ -f "$resub" ] && die "Resub is already there, unlogical !"
+if [ -n "$resubmit_file" ]; then
+  [ -f "$resubmit_file" ] && die "Resub is already there, unlogical !"
   if [ "$batchname" = "/dev/stdout" ]; then
     echo Error: Resub and print options make no sense together >&2
-    echo Error: Filename after $qsub in next line will be wrong !!! >&2
+    echo Error: Filename after $submit_cmd in next line will be wrong !!! >&2
   fi
-  echo "[ \$result -eq 0 ] && [ ! -f $resub ] && $qsub $PWD/$batchname" >> $batchname
-  [ -z "$finish_file" ] || echo "[ \$result -eq 0 ] && [ -f $resub ] && touch $finish_file" >> $batchname
+  echo "[ \$result -eq 0 ] && [ ! -f "$resubmit_file" ] && $submit_cmd $PWD/$batchname" >> $batchname
+  [ -z "$finish_file" ] || echo "[ \$result -eq 0 ] && [ -f $resubmit_file ] && touch $finish_file" >> $batchname
 else
   [ -z "$finish_file" ] || echo "[ \$result -eq 0 ] && touch $finish_file" >> $batchname
 fi
 
-if [ "$run" = "no" ]; then
-  [[ "$batchname" != "/dev/stdout" ]] && run_on_host --show "cd $PWD;$qsub $qsub_opts $batchname'"
+if [ "$submit" = "no" ]; then
+  [[ "$batchname" != "/dev/stdout" ]] && echo "Submit command: '${0##*/} --sbumit $batchname'"
   exit 0
 fi
 
-message="$(run_on_host "cd $PWD;$qsub $qsub_opts $batchname")" || die
-qecho "$message"
+submit_job $batchname
 
 if [ "$wait" = "yes" ]; then
   qecho "Waiting for $batchname to finish"
@@ -654,6 +739,6 @@ if [ "$wait" = "yes" ]; then
     sleep $sleeptime;
   done
   [[ -n "${finish_file}" ]] && [[ ! -f "$finish_file" ]] && exit 1
-  [[ -n "${resub}" ]] && [[ ! -f "$resub" ]] && exit 1
+  [[ -n "${resubmit_file}" ]] && [[ ! -f "$resubmit_file" ]] && exit 1
   exit 0
 fi
