@@ -48,6 +48,7 @@
 #version 0.9.9, 07.07.10 -- added --alljobs (thx to victor)
 #version 0.9.10,07.07.10 -- added connection check
 #version 1.0.0 ,13.08.10 -- major variable renaming added --rcfile option
+#version 1.0.1 ,16.08.10 -- added --nooldhosts and extra_XXX_code rc options
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you realy need to change
@@ -58,11 +59,13 @@
 queue_path="/opt/SGE/bin/lx26-amd64"
 
 #command to submit a job
-submit_cmd="$queue_path/qsub"
+job_submit="$queue_path/qsub"
 #command to get status
-status_cmd="$queue_path/qstat"
+job_status="$queue_path/qstat"
 #commnd to cancel/delete a job
-delete_cmd="$queue_path/qdel"
+job_kill="$queue_path/qdel"
+#commnd to cancel/delete a job
+job_info="$queue_path/qconf"
 #extra options for submit
 submit_opts=""
 #name of the host, where to submit the jobs
@@ -75,6 +78,8 @@ ncpus=1
 wall_time="36:00:00"
 #on which node to run by default, empty = no default
 hostname=""
+#no old node, will only use nodes >=thop63
+no_old_hosts="no"
 
 ########### MPI stuff ###############
 #should mpirun (or equivalent) be added: yes/no
@@ -105,6 +110,11 @@ resubmit_file=""
 extra_source=""
 #default option if none are given on the command line
 default_opts=""
+#extra code to put in script after changing to the PWD and copy of files
+# but before running the job
+extra_begin_code=""
+#extra code to put in script after running the job, but before copy back
+extra_end_code=""
 
 ########### other options #####
 #be quiet or not: yes/no
@@ -167,7 +177,7 @@ run_on_host() {
 check_job() {
   local message
   number_check "$1" "--checkjob"
-  message=$(run_on_host "$status_cmd -u $USER") || die
+  message=$(run_on_host "$job_status -u $USER") || die
   if [ -z "$(echo -e "$message" | awk "(\$1==$1){print \$0}")" ]; then
     qecho "Job '$1' on $submit_host NOT found"
     return 1
@@ -198,7 +208,7 @@ pcheck_job() {
 
 kill_job() {
   number_check "$1" "--killjob"
-  run_on_host "$delete_cmd $1"
+  run_on_host "$job_kill $1"
   return $?
 }
 
@@ -206,14 +216,14 @@ submit_job() {
   local message
   [ -z "$1" ] && die "submit_job: missing argument"
   [ -f "$1" ] || die "Could not find $1"
-  message="$(run_on_host $show "cd $PWD;$submit_cmd $submit_opts $batchname")" || die
+  message="$(run_on_host $show "cd $PWD;$job_submit $submit_opts $batchname")" || die
   qecho "$message"
 }
 
 print_jobids() {
   local message job_id
   [ -n "$1" ] || die "print_jobids: Expect a pattern"
-  message=$(run_on_host "$status_cmd -u $USER") || die
+  message=$(run_on_host "$job_status -u $USER") || die
   for job_id in $(echo -e "$message" | awk "(\$3 ~ /${1:0:8}/){print \$1}"); do
     echo $job_id
   done
@@ -239,9 +249,17 @@ number_check(){
   [ -n "${number//[0-9]}" ] && die "Argument after $option should be a number"
 }
 
-queue_info() {
-  local queue
-  number_check "$1" "--queueinfo"
+extra_queue_header() {
+  [ -z "$1" ] && die "extra_queue_header: Missing argument"
+  if [ $1 -eq 2 ]; then
+    echo "#$ -pe lammpi2cpu 2"
+  elif [ $1 -eq 8 ]; then
+    echo "#$ -pe lammpi8cores 8"
+  fi
+}
+
+cpunr_to_queuename() {
+  [ -z "$1" ] && die "cpunr_to_queuename: Missing argument"
   if [ $1 -eq 1 ]; then
     queue="all.q"
   elif [ $1 -eq 2 ]; then
@@ -249,9 +267,25 @@ queue_info() {
   elif [ $1 -eq 8 ]; then
     queue="octal.q"
   else
-    die "Number of cpus unsupported"
+    die "Do not know how to handle this Number of cpus '$nrcpus'"
   fi
-  run_on_host "$status_cmd -q $queue"
+  [ "$no_old_hosts" = "yes" ] && expand_queue $queue || echo $queue
+}
+
+expand_queue(){
+  local i
+  [ -z "$1" ] && die "expand_queue: Missing argument"
+  for ((i=63;i<102;i++)); do
+    echo -n "${1}@thop${i},"
+  done
+  echo ${1}@thop102
+}
+
+queue_info() {
+  local queue
+  number_check "$1" "--queueinfo"
+  queue=$(cpunr_to_queuename "$1") || die
+  run_on_host "$job_info -sq $queue"
   return $?
 }
 
@@ -298,7 +332,7 @@ SCRIPT OPTIONS:
                      run, remember to use quotes ("file1 file2 file3" or "\$(ls *.d)")
                      (implies --scratch)
 
-MPI OPTIONS:
+QUEUE OPTIONS:
 -N                   Number of cpus (also determines the queue)
                      Default: $ncpus
     --nompi          This is NOT a mpi job, so do NOT add mpirun (or equivalent)
@@ -307,6 +341,7 @@ MPI OPTIONS:
                      Default: $wall_time
     --runat HOST     Specify the host to run yourself
     --runatnow HOST  like --runat, but one do it one time, not after the resubmitting
+    --nooldhosts     Only use host >=thop63
 
 
 JOBS OPTIONS:
@@ -366,7 +401,7 @@ show_logs() {
   local message path logfile
   [ -z "$2" ] && die "show_logs: Missing argument"
   number_check "$1" "--showlog/--taillog"
-  message=$(run_on_host "$status_cmd -r -j $1") || die
+  message=$(run_on_host "$job_status -r -j $1") || die
   path=$(echo -e "$message" | awk '/^cwd/{ print $2}')
   logfile=$(echo -e "$message" | awk '/^stdout_path_list:/{ print $2}')
   $2 $path/$logfile
@@ -377,7 +412,7 @@ show_path() {
   local message path
   [ -z "$1" ] && die "show_path: Missing argument"
   number_check "$1" "--showdir"
-  message=$(run_on_host "$status_cmd -r -j $1") || die
+  message=$(run_on_host "$job_status -r -j $1") || die
   path=$(echo -e "$message" | awk '/^cwd/{ print $2}')
   [ -z "$path" ] && die "show_path: Could not get path"
   echo "$path"
@@ -502,11 +537,14 @@ while [ "${1#-}" != "$1" ]; do
    --runatnow )
    submit_opts="$submit_opts -l hostame=$2"
    shift 2;;
+   --nooldhosts )
+   no_old_hosts="yes"
+   shift ;;
    --showjobs )
-   run_on_host "$status_cmd -u $USER"
+   run_on_host "$job_status -u $USER"
    exit $?;;
    --alljobs )
-   run_on_host "$status_cmd"
+   run_on_host "$job_status"
    exit $?;;
    --killjob )
    kill_job $2
@@ -598,6 +636,9 @@ elif [ "$myshell" = "tcsh" ]; then
 else
   die "Unsupported shell"
 fi
+
+queue_name=$(cpunr_to_queuename $ncpus) || die
+
 cat <<EOF >>$batchname
 #This script is generated by $USER@$HOSTNAME
 #on $(date)
@@ -605,24 +646,29 @@ cat <<EOF >>$batchname
 #using $($0 --version)
 
 #sge options
+#$ -cwd
+#$ -j y
+#$ -o $logfile
+#$ -l h_rt=${wall_time}
+#$ -q ${queue_name}
+$(extra_queue_header $ncpus)
 EOF
-if [ "$myshell" = "bash" ] || [ "$myshell" = "none" ]; then
+
+if [ "$myshell" = "bash" ]; then
   echo "#$ -S /bin/bash" >> $batchname
+  [ -f ~/.bashrc ] && sh_source="source ~/.bashrc"
 elif [ "$myshell" = "zsh" ]; then
   echo "#$ -S /usr/bin/zsh" >> $batchname
+  [ -f ~/.zshrc ] && sh_source="source ~/.zshrc"
 elif [ "$myshell" = "tcsh" ]; then
   echo "#$ -S /bin/tcsh" >> $batchname
-fi
-if [ $ncpus -eq 1 ]; then
-  echo "#$ -q all.q" >> $batchname
-elif [ $ncpus -eq 2 ]; then
-  echo "#$ -q dual.q" >> $batchname
-  echo "#$ -pe lammpi2cpu 2" >> $batchname
-elif [ $ncpus -eq 8 ]; then
-  echo "#$ -q octal.q" >> $batchname
-  echo "#$ -pe lammpi8cores 8" >> $batchname
-else
-  die "Number of cpus unsupported"
+  if [ -f ~/.tcshrc ]; then
+    sh_source="source ~/.tcshrc"
+  elif [ -f ~/.cshrc ]; then
+    sh_source="source ~/.cshrc"
+  fi
+elif [ "$myshell" = "none" ]; then
+  echo "#$ -S /bin/bash" >> $batchname
 fi
 
 if [ -n "$hostname" ]; then
@@ -637,26 +683,8 @@ else
 fi
 
 cat <<EOF >>$batchname
-#$ -cwd
-#$ -j y
-#$ -o $logfile
-#$ -l h_rt=${wall_time}
 
-EOF
-
-if [ "$myshell" = "bash" ]; then
-  [ -f ~/.bashrc ] && echo "source ~/.bashrc" >> $batchname
-elif [ "$myshell" = "zsh" ]; then
-  [ -f ~/.bashrc ] && echo "source ~/.zshrc" >> $batchname
-elif [ "$myshell" = "tcsh" ]; then
-  if [ -f ~/.tcshrc ]; then
-    echo "source ~/.tcshrc" >> $batchname
-  elif [ -f ~/.cshrc ]; then
-    echo "source ~/.cshrc" >> $batchname
-  fi
-fi
-
-cat <<EOF >>$batchname
+${sh_source}
 
 cd $PWD
 echo Hi, I am job \$JOB_ID on \$HOSTNAME in \$PWD
@@ -680,6 +708,14 @@ EOF
 echo 'cd $newdir' >> $batchname
 fi
 
+if [ -n "$extra_begin_code}" ]; then
+  cat <<EOF >>$batchname
+#BEGIN of extra begin code
+${extra_begin_code}
+#END of extra begin code
+EOF
+fi
+
 echo echo Starting simulation >> $batchname
 [[ "$time" = "yes" ]] && echo date >> $batchname
 [[ $ncpus -ne 1 ]] && echo "pgrep lamd > /dev/null || $lamboot_cmd" >> $batchname
@@ -697,6 +733,14 @@ cat <<EOF >>$batchname
 ${set}result=\$?
 [ \$result -ne 0 ] && echo "\$JOB_ID finished unhappy!"
 EOF
+
+if [ -n "$extra_end_code}" ]; then
+  cat <<EOF >>$batchname
+#BEGIN of extra end code
+${extra_end_code}
+#END of extra end code
+EOF
+fi
 
 if [ "$scratch" = "yes" ]; then
   [[ "$time" = "yes" ]] && echo date >> $batchname
@@ -717,16 +761,16 @@ if [ -n "$resubmit_file" ]; then
   [ -f "$resubmit_file" ] && die "Resub is already there, unlogical !"
   if [ "$batchname" = "/dev/stdout" ]; then
     echo Error: Resub and print options make no sense together >&2
-    echo Error: Filename after $submit_cmd in next line will be wrong !!! >&2
+    echo Error: Filename after $job_submit in next line will be wrong !!! >&2
   fi
-  echo "[ \$result -eq 0 ] && [ ! -f "$resubmit_file" ] && $submit_cmd $PWD/$batchname" >> $batchname
+  echo "[ \$result -eq 0 ] && [ ! -f "$resubmit_file" ] && $job_submit $PWD/$batchname" >> $batchname
   [ -z "$finish_file" ] || echo "[ \$result -eq 0 ] && [ -f $resubmit_file ] && touch $finish_file" >> $batchname
 else
   [ -z "$finish_file" ] || echo "[ \$result -eq 0 ] && touch $finish_file" >> $batchname
 fi
 
 if [ "$submit" = "no" ]; then
-  [[ "$batchname" != "/dev/stdout" ]] && echo "Submit command: '${0##*/} --sbumit $batchname'"
+  [[ "$batchname" != "/dev/stdout" ]] && echo "to submit the script run: '${0##*/} --sbumit $batchname'"
   exit 0
 fi
 
