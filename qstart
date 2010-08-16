@@ -708,7 +708,7 @@ EOF
 echo 'cd $newdir' >> $batchname
 fi
 
-if [ -n "$extra_begin_code}" ]; then
+if [ -n "${extra_begin_code}" ]; then
   cat <<EOF >>$batchname
 #BEGIN of extra begin code
 ${extra_begin_code}
@@ -734,7 +734,7 @@ ${set}result=\$?
 [ \$result -ne 0 ] && echo "\$JOB_ID finished unhappy!"
 EOF
 
-if [ -n "$extra_end_code}" ]; then
+if [ -n "${extra_end_code}" ]; then
   cat <<EOF >>$batchname
 #BEGIN of extra end code
 ${extra_end_code}
