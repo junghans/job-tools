@@ -48,7 +48,7 @@
 #version 0.9.9, 07.07.10 -- added --alljobs (thx to victor)
 #version 0.9.10,07.07.10 -- added connection check
 #version 1.0.0 ,13.08.10 -- major variable renaming added --rcfile option
-#version 1.0.1 ,16.08.10 -- added --nooldhosts and extra_XXX_code rc options
+#version 1.0.1 ,16.08.10 -- added --nooldnodes and extra_XXX_code rc options
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you realy need to change
@@ -79,7 +79,7 @@ wall_time="36:00:00"
 #on which node to run by default, empty = no default
 hostname=""
 #no old node, will only use nodes >=thop63
-no_old_hosts="no"
+no_old_nodes="no"
 
 ########### MPI stuff ###############
 #should mpirun (or equivalent) be added: yes/no
@@ -212,6 +212,12 @@ kill_job() {
   return $?
 }
 
+stat_job() {
+  number_check "$1" "--statjob"
+  run_on_host "$job_status -j $1"
+  return $?
+}
+
 submit_job() {
   local message
   [ -z "$1" ] && die "submit_job: missing argument"
@@ -269,7 +275,7 @@ cpunr_to_queuename() {
   else
     die "Do not know how to handle this Number of cpus '$nrcpus'"
   fi
-  [ "$no_old_hosts" = "yes" ] && expand_queue $queue || echo $queue
+  [ "$no_old_nodes" = "yes" ] && expand_queue $queue || echo $queue
 }
 
 expand_queue(){
@@ -341,7 +347,7 @@ QUEUE OPTIONS:
                      Default: $wall_time
     --runat HOST     Specify the host to run yourself
     --runatnow HOST  like --runat, but one do it one time, not after the resubmitting
-    --nooldhosts     Only use host >=thop63
+    --nooldnodes     Only use host >=thop63
 
 
 JOBS OPTIONS:
@@ -355,7 +361,8 @@ JOBS OPTIONS:
     --showlog  JOB_ID Show logfile for running job with number JOB_ID
     --showdir  JOB_ID Show pwd of simulation
     --taillog  JOB_ID Same as --showlog but tail and follow
-    --killjob  JOB_ID Kill job with NUMBER
+    --killjob  JOB_ID Kill job with number JOB_ID
+    --statjob  JOB_ID Show status of the job with number JOB_ID
     --pkill PATTERN   Kill all jobs matching a pattern
     --getjid PATTERN  Retrun the ids of all jobs matching PATTERN
     --queueinfo NR    Show info about some queue [1|2|8]
@@ -538,7 +545,7 @@ while [ "${1#-}" != "$1" ]; do
    submit_opts="$submit_opts -l hostame=$2"
    shift 2;;
    --nooldhosts )
-   no_old_hosts="yes"
+   no_old_nodes="yes"
    shift ;;
    --showjobs )
    run_on_host "$job_status -u $USER"
@@ -548,6 +555,9 @@ while [ "${1#-}" != "$1" ]; do
    exit $?;;
    --killjob )
    kill_job $2
+   exit $?;;
+   --statjob )
+   stat_job $2
    exit $?;;
    --getjid )
    print_jobids "$2"
