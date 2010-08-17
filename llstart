@@ -397,7 +397,7 @@ get_path_from_script(){
   local path
   [ -z "$1" ] && die "get_path_from_script: Missing argument"
   [ -f "$1" ] || die "get_path_from_script: Could not found"
-  [ -z "$(grep -e '${0##*/}' $1)" ] && die "$1 seems NOT to be a '${0##*/}' script"
+  [ -z "$(grep -e "${0##*/}" $1)" ] && die "$1 seems NOT to be a '${0##*/}' script"
   path="$(awk '/^cd/{print $2;exit 0}' $1)"
   [ -z "$path" ] && die "get_path_from_script: found not grep path from $1"
   echo "$path"

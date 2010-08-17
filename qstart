@@ -386,6 +386,7 @@ COMMON OPTIONS:
 Notes for usage of scratch space:
 ------------------------
 -The usage of the scratch space is complicated, use it with care!
+-Only use scratch space if you expect heavy input/output load
 -You may add the input files to copy to the scratch dir  with --needed 
  or use "--needed '*'", if want to copy all files of the current dir.
 -If the binary in not in your PATH, give the full path of binary or 
@@ -434,7 +435,7 @@ get_path_from_script(){
   local path
   [ -z "$1" ] && die "get_path_from_script: Missing argument"
   [ -f "$1" ] || die "get_path_from_script: Could not found"
-  [ -z "$(grep -e '${0##*/}' $1)" ] && die "$1 seems NOT to be a '${0##*/}' script"
+  [ -z "$(grep -e "${0##*/}" $1)" ] && die "$1 seems NOT to be a '${0##*/}' script"
   path="$(awk '/^cd/{print $2;exit 0}' $1)"
   [ -z "$path" ] && die "get_path_from_script: found not grep path from $1"
   echo "$path"
