@@ -751,6 +751,7 @@ if [ "$scriptmode" = "yes" ]; then
     [ -f "$i" ] || die "File '$i' not found"
     cat "$i" >> $batchname
   done
+  cmdline=""
 elif [ "$mpi_job" = "no" ] || [ $ncpus -eq 1 ]; then
   cmdline="$*"
 else
