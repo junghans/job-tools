@@ -91,6 +91,8 @@ wait="no"
 sleeptime=900
 #default email adress, empty = no email
 mail="$USER@mpip-mainz.mpg.de"
+#warn about wrong email if using llstart on real_submit_hostname
+warn_mail="yes"
 #header to show with --showjobs option
 header="JOBS ON vip"
 #shell to be used by default, none=bash
@@ -237,7 +239,7 @@ cpunr_to_queuename() {
   elif [ $1 -eq 4096 ]; then
     echo "xxl"
   else
-    die "Do not know how to handle this Number of cpus '$nrcpus'"
+    die "Do not know how to handle this Number of cpus '$1'"
   fi
 }
 
@@ -647,6 +649,11 @@ if [ -z "$mail" ]; then
 else
   echo '# @ notification = complete' >> $batchname
   echo "# @ notify_user = $mail" >> $batchname
+  if [ "$warn_mail" = "yes" ] && [ "${HOSTNAME}" = "$real_submit_hostname" ]; then 
+    echo "# Check if '$mail' is  realy your email !!!"
+    echo "# if it is correct, change warn_mail in your $rcfile to no"
+    sleep 10
+  fi
 fi
 
 cat <<EOF >> $batchname
