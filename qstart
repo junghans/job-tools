@@ -278,7 +278,7 @@ cpunr_to_queuename() {
   elif [ $1 -eq 8 ]; then
     queue="octal.q"
   else
-    die "Do not know how to handle this Number of cpus '$nrcpus'"
+    die "Do not know how to handle this Number of cpus '$1'"
   fi
   if [ "$no_old_nodes" = "yes" ]; then
     expand_queue $queue
