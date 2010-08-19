@@ -370,7 +370,7 @@ QUEUE OPTIONS:
                      Default: $ncpus
     --nompi          This is NOT a mpi job, so do NOT add mpirun (or equivalent)
                      to the command line (for ncpus > 1) automatically
-    --walltime TIME  Change wall clock time
+    --walltime TIME  Change wall clock time (use 1cpu and  00:20:00 for test queue)
                      Default: $wall_time
     --runat HOST     Specify the host to run yourself
     --runatnow HOST  like --runat, but one do it one time, not after the resubmitting

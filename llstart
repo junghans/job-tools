@@ -303,7 +303,7 @@ QUEUE OPTIONS:
     --smt            Use multithreading (two tasks per cpu)
     --nompi          This is NOT a mpi job, so do NOT add mpirun (or equivalent)
                      to the command line (for ncpus > 1) automatically
-    --walltime TIME  Change wall clock time (try 00:30:00 for express queue)
+    --walltime TIME  Change wall clock time (use 32cpus and 00:30:00 for express queue)
                      Default: $wall_time
     --ibm-hacks      Some extra ibm hack (EXPERIMENTAL)
 
