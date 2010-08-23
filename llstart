@@ -15,6 +15,7 @@
 #version 0.2.4, 25.02.10 -- added --smt option
 #version 0.3.0, 03.08.10 -- added some extra checks (thx to mara)
 #version 0.4.0, 16.08.10 -- added rcoptions and merge with qstart
+#version 0.4.1, 23.08.10 -- allow devel queue with 4,8,16 cpus
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you realy need to change
@@ -118,7 +119,7 @@ qecho() {
 }
 
 die() {
-  echo -e "$*" >&2
+  [ -z "$1" ] || echo -e "$*" >&2
   [ -n "$batchname" ] && [ -f "$batchname" ] && rm -f "$batchname" && die "batchname $batchname removed"
   exit 1
 }
@@ -221,9 +222,25 @@ number_check(){
 }
 
 cpunr_to_queuename() {
+  local secs
   [ -z "$1" ] && die "cpunr_to_queuename: Missing argument"
-  if [ $1 -eq 32 ]; then
-    echo "small"
+  secs=$(walltime_to_sec $wall_time) || die
+  [ $secs -gt 86400 ] && die "Wall time bigger than 24h is not possible"
+  if [ $1 -eq 1 ]; then
+    [ $secs -le 3600 ] || die "Wall time of single queue is max 1h!"
+    [ $smt -eq 2 ] && die "Single queue with smt is not possible" 
+    echo "single"
+  elif [ $1 -eq 2 ]; then
+    [ $smt eq 1 ] && die "Dual queue without --smt is not possible"
+    [ $secs -le 900 ] && echo "develop_$(($1*$smt))p" || echo "small"
+  elif [ $1 -eq 4 ] || [ $1 -eq 8 ]; then
+    [ $secs -le 900 ] && echo "develop_$(($1*$smt))p" || echo "small"
+  elif [ $1 -eq 16 ] && [ $smt -eq 1 ]; then
+    [ $secs -le 900 ] && echo "develop_16" || echo "small"
+  elif [ $1 -eq 16 ] && [ $smt -eq 2 ]; then
+    [ $secs -le 1800 ] && echo "express" || echo "small"
+  elif [ $1 -eq 32 ]; then
+    [ $secs -le 1800 ] && echo "express" || echo "small"
   elif [ $1 -eq 64 ]; then
     echo "big"
   elif [ $1 -eq 128 ]; then
@@ -243,11 +260,28 @@ cpunr_to_queuename() {
   fi
 }
 
+walltime_to_sec() {
+  local secs wall
+  [ -z "$1" ] && die "walltime_to_sec: Missing argument"
+  [ -z "${1/[0-9][0-9]:[0-9][0-9]:[0-9][0-9]}" ] || die "Wall clock time should have the format HH:MM:SS"
+  wall="$1"
+  secs=${wall##*:}
+  wall=${wall%:??}
+  secs=$(( $secs + 60*${wall##*:} ))
+  wall=${wall%:??}
+  secs=$(( $secs + 3600*${wall##*:} ))
+  echo "$secs"
+}
+
 queue_info() {
   local queue
-  number_check "$1" "--queueinfo"
-  queue="$(cpunr_to_queuename "$1")" || die
-  run_on_host "$job_info $queue"
+  if [ -n "$1" ]; then
+    number_check "$1" "--queueinfo"
+    queue="$(cpunr_to_queuename "$1")" || die
+    run_on_host "$job_info $queue"
+  else
+    run_on_host "$job_info" 
+  fi
   return $?
 }
 
@@ -298,12 +332,14 @@ SCRIPT OPTIONS:
     --cpback FILE    Copy back files from jobs which was start with BATCH
 
 QUEUE OPTIONS:
--N, --NNNN           Number of cpus (also determines the queue)
+-N, --NNNN           Number of cpus (also determines the queue together with walltime)  
+                     Possible: 1|4|8|16|32|64|128|..|4096
                      Default: $ncpus
     --smt            Use multithreading (two tasks per cpu)
     --nompi          This is NOT a mpi job, so do NOT add mpirun (or equivalent)
                      to the command line (for ncpus > 1) automatically
-    --walltime TIME  Change wall clock time (use 32cpus and 00:30:00 for express queue)
+    --walltime TIME  Change wall clock time 
+                     (use 32cpus and 00:30:00 for express queue,<=16 cpus and 00:15:00 for develop queue)
                      Default: $wall_time
     --ibm-hacks      Some extra ibm hack (EXPERIMENTAL)
 
@@ -323,7 +359,7 @@ JOBS OPTIONS:
     --statjob  JOB_ID Show status of the job with number JOB_ID
     --pkill PATTERN   Kill all jobs matching a pattern
     --getjid PATTERN  Retrun the ids of all jobs matching PATTERN
-    --queueinfo NR    Show info about some queue [32|64|128|..|4096]
+    --queueinfo [NR]  Show info about some queue [1|4|8|16|32|64|128|..|4096] or all queues
     --header          Show info header
 
 COMMON OPTIONS:
@@ -620,7 +656,17 @@ fi
 
 queue_name="$(cpunr_to_queuename $ncpus)" || die
 
-nnodes=$(($ncpus/32))
+if [ $ncpus -lt 32 ]; then
+  nnodes=1
+  ncpus=$(($ncpus * $smt))
+  shared="shared"
+  cpu_binding=""
+else
+  nnodes=$(($ncpus/32))
+  ncpus=$((32 * $smt))
+  shared="not_shared"
+  cpu_binding="ConsumableCpus(1)"
+fi
 
 cat <<EOF >> $batchname
 #! /bin/bash
@@ -631,11 +677,11 @@ cat <<EOF >> $batchname
 # @ shell = /bin/bash
 # @ wall_clock_limit= $wall_time
 # @ job_type = parallel
-# @ node_usage= not_shared
-# @ tasks_per_node = $((32*$smt))
-# @ network.MPI = sn_all,not_shared,us
+# @ node_usage = $shared
+# @ tasks_per_node = $ncpus
+# @ network.MPI = sn_all,$shared,us
 # @ task_affinity = core(1)
-# @ resources = ConsumableCpus(1)ConsumableMemory(1600 mb)
+# @ resources = ${cpu_binding}ConsumableMemory(1600 mb)
 # @ node = $nnodes
 # @ class = $queue_name
 # @ error = $logfile
