@@ -50,6 +50,7 @@
 #version 1.0.0 ,13.08.10 -- major variable renaming added --rcfile option
 #version 1.0.1 ,16.08.10 -- added --nooldnodes and extra_XXX_code rc options
 #version 1.0.2 ,19.08.10 -- assigned test.q if walltime <= 20min
+#version 1.0.3 ,24.08.10 -- added --selfupdate
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you realy need to change
@@ -150,6 +151,8 @@ batchname=""
 logfile=""
 #rc to read
 rcfile="~/.${0##*/}rc"
+#where to look for updates
+selfurl="http://job-tools.cj-overlay.googlecode.com/hg/qstart"
 
 qecho() {
   [[ "$quiet" = "no" ]] && echo -e "$*"
@@ -329,6 +332,30 @@ queue_info() {
   return $?
 }
 
+get_version() {
+  sed -ne 's/^#version[[:space:]]*\([^[:space:]]*\)[[:space:]]*,.*$/\1/p' $1 | sed -n '$p'
+}
+
+self_update() {
+  local new_version old_version
+  [ -z "$(type -p wget)" ] && die "wget not found"
+  new_version="$(wget -qO- "${selfurl}")" || die "self_update: wget fetch from $selfurl failed"
+  new_version="$(echo -e "${new_version}" | get_version)"
+  [ -z "${new_version}" ] && die "self_update: Could not fetch new version number"
+  old_version="$(get_version $0)"
+  echo "Version on googlecode is: $new_version"
+  echo "Local Version: $old_version"
+  new_version="$(echo "${new_version//[^0-9]}" | sed -e 's/^..$/&0/' -e 's/^...$/&0/')"
+  old_version="$(echo "${old_version//[^0-9]}" | sed -e 's/^..$/&0/' -e 's/^...$/&0/')"
+  if [ $new_version -gt $old_version ]; then
+    echo "I will try replace myself now with $selfurl in 5 secs (CTRL-C to stop)"
+    sleep 5
+    wget -O "${0}" "${selfurl}"
+  else
+    echo "No updated needed"
+  fi
+}
+
 showhelp() {
  cat << eoh
 A script to start a job on the cluster.
@@ -410,8 +437,9 @@ COMMON OPTIONS:
                      Default: read only $rcfile if exist
     --showdefaults   Show the default settings before reading $rcfile and the
                      file given by --rcfile, useful to create own rcfile with:
-		     "${0##*/} --showdefaults > $rcfile"
+                     "${0##*/} --showdefaults > $rcfile"
 -v, --version        Prints version
+    --selfupdate     Do a self update from googlecode (EXPERIMENTAL)
 -h, --help           Show this help message
 
 Notes for usage of scratch space:
@@ -631,8 +659,11 @@ while [ "${1#-}" != "$1" ]; do
    show_logs "$2" "tailf"
    exit $?;;
   -v | --version)
-   echo ${0##*/}, $(sed -ne 's/^#\(version.*\) -- .*$/\1/p' $0 | sed -n '$p') by C. Junghans
+   echo ${0##*/}, version $(get_version $0) by C. Junghans
    exit 0;;
+  --selfupdate)
+   self_update
+   exit $?;;
   --hg)
    echo "${0##*/}: $(sed -ne 's/^#version.* -- \(.*\)$/\1/p' $0 | sed -n '$p')"
    exit 0;;
