@@ -387,7 +387,7 @@ Examples:
    ${0##*/} --name gromacs mdrun -v
    ${0##*/} --32 --needed topol.tpr mdrun
    ${0##*/} "echo -e \"SOL\nSOL\" | g_rdf -b 100 -n index.ndx"
-   ${0##*/} --32 --resubmit confout.gro --needed topol.tpr  mdrun -append -cpi state.cpt -maxh 24
+   ${0##*/} --32 --source ~/myGromacs/GMXRC --resubmit confout.gro --needed topol.tpr  mdrun -append -cpi state.cpt -maxh 24
             (Note: -cpi is smart, the first time mdrun will start normal!)
    ${0##*/} --32 --needed '*' --resubmit confout.gro  mdrun -append -cpi state.cpt -maxh 23
             (Note: --needed '*' needs a separate dir for the simulation!)
