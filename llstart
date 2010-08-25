@@ -17,6 +17,7 @@
 #version 0.4.0, 16.08.10 -- added rcoptions and merge with qstart
 #version 0.4.1, 23.08.10 -- allow devel queue with 4,8,16 cpus
 #version 0.4.2 ,24.08.10 -- added --selfupdate
+#version 0.4.3 ,25.08.10 -- added --mode options
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you realy need to change
@@ -42,8 +43,8 @@ real_submit_hostname="vip001"
 submit="yes"
 #default number of cpus to use
 ncpus=32
-#number of threads per cpu 1/2 possible
-smt=1
+#mode to run in: normal/smt (2 task per cpu)
+mode="normal"
 #default wall clock time
 wall_time="24:00:00"
 
@@ -65,7 +66,7 @@ auto="no"
 time="no"
 #enable some extra ibm hacks: yes/no
 ibm_hacks="no"
-#base dir to simlation space 
+#base dir to simlation space
 #will be used after $HOME/$sim_base/$batchname
 sim_base="sim"
 #file to create if jobs is finished
@@ -231,16 +232,22 @@ cpunr_to_queuename() {
   [ $secs -gt 86400 ] && die "Wall time bigger than 24h is not possible"
   if [ $1 -eq 1 ]; then
     [ $secs -le 3600 ] || die "Wall time of single queue is max 1h!"
-    [ $smt -eq 2 ] && die "Single queue with smt is not possible" 
+    [ "$mode" = "smt" ] && die "Single queue in smt mode is not possible - try -4"
     echo "single"
   elif [ $1 -eq 2 ]; then
-    [ $smt eq 1 ] && die "Dual queue without --smt is not possible"
-    [ $secs -le 900 ] && echo "develop_$(($1*$smt))p" || echo "small"
-  elif [ $1 -eq 4 ] || [ $1 -eq 8 ]; then
-    [ $secs -le 900 ] && echo "develop_$(($1*$smt))p" || echo "small"
-  elif [ $1 -eq 16 ] && [ $smt -eq 1 ]; then
+    [ "$mode" = "normal" ] && die "Dual queue only possible in smt mode"
+    [ $secs -le 900 ] && echo "develop_4p" || echo "small"
+  elif [ $1 -eq 4 ] && [ "$mode" = "normal" ]; then
+    [ $secs -le 900 ] && echo "develop_4p" || "small"
+  elif [ $1 -eq 4 ] && [ "$mode" = "smt" ]; then
+    [ $secs -le 900 ] && echo "develop_8p" || "small"
+  elif [ $1 -eq 8 ] && [ "$mode" = "normal" ]; then
+    [ $secs -le 900 ] && echo "develop_8p" || "small"
+  elif [ $1 -eq 8 ] && [ "$mode" = "smt" ]; then
+    [ $secs -le 900 ] && echo "develop_16p" || "small"
+  elif [ $1 -eq 16 ] && [ "$mode" = "normal" ]; then
     [ $secs -le 900 ] && echo "develop_16" || echo "small"
-  elif [ $1 -eq 16 ] && [ $smt -eq 2 ]; then
+  elif [ $1 -eq 16 ] && [ "$mode" = "smt" ]; then
     [ $secs -le 1800 ] && echo "express" || echo "small"
   elif [ $1 -eq 32 ]; then
     [ $secs -le 1800 ] && echo "express" || echo "small"
@@ -283,7 +290,7 @@ queue_info() {
     queue="$(cpunr_to_queuename "$1")" || die
     run_on_host "$job_info $queue"
   else
-    run_on_host "$job_info" 
+    run_on_host "$job_info"
   fi
   return $?
 }
@@ -359,13 +366,15 @@ SCRIPT OPTIONS:
     --cpback FILE    Copy back files from jobs which was start with BATCH
 
 QUEUE OPTIONS:
--N, --NNNN           Number of cpus (also determines the queue together with walltime)  
+-N, --NNNN           Number of cpus (also determines the queue together with walltime) 
                      Possible: 1|4|8|16|32|64|128|..|4096
                      Default: $ncpus
-    --smt            Use multithreading (two tasks per cpu)
+    --mode XXX       Change threading mode: normal or smt (2 tasks per cpu)
+                     Default: $mode
+    --smt            Same as --mode smt
     --nompi          This is NOT a mpi job, so do NOT add mpirun (or equivalent)
                      to the command line (for ncpus > 1) automatically
-    --walltime TIME  Change wall clock time 
+    --walltime TIME  Change wall clock time
                      (use 32cpus and 00:30:00 for express queue,<=16 cpus and 00:15:00 for develop queue)
                      Default: $wall_time
     --ibm-hacks      Some extra ibm hack (EXPERIMENTAL)
@@ -404,7 +413,7 @@ COMMON OPTIONS:
 Notes for usage of space on $submit_host:
 ------------------------
 -The usage of the scratch space is complicated, use it with care!
--You may add the input files to copy to the scratch dir  with --needed 
+-You may add the input files to copy to the scratch dir  with --needed
  or use "--needed '*'", if want to copy all files of the current dir.
 -If the binary in not in your PATH, give the full path of binary.
 
@@ -506,8 +515,13 @@ while [ "${1#-}" != "$1" ]; do
    ncpus=${ncpus#-}
    number_check "$ncpus" "$1"
    shift;;
+  --mode )
+   mode=" smt normal "
+   [ -n "${mode//* $2 *}" ] && die "Argument of --mode has to be one of:$mode"
+   mode="$2"
+   shift 2;;
   --smt )
-   smt="2"
+   mode="smt"
    shift;;
   -p | --print )
    batchname="/dev/stdout"
@@ -689,12 +703,12 @@ queue_name="$(cpunr_to_queuename $ncpus)" || die
 
 if [ $ncpus -lt 32 ]; then
   nnodes=1
-  ncpus=$(($ncpus * $smt))
+  [ "$mode" = "smt" ] && ncpus=$(($ncpus * 2))
   shared="shared"
   cpu_binding=""
 else
   nnodes=$(($ncpus/32))
-  ncpus=$((32 * $smt))
+  [ "$mode" = "smt" ] && ncpus=64 || ncpus=32
   shared="not_shared"
   cpu_binding="ConsumableCpus(1)"
 fi
@@ -726,7 +740,7 @@ if [ -z "$mail" ]; then
 else
   echo '# @ notification = complete' >> $batchname
   echo "# @ notify_user = $mail" >> $batchname
-  if [ "$warn_mail" = "yes" ] && [ "${HOSTNAME}" = "$real_submit_hostname" ]; then 
+  if [ "$warn_mail" = "yes" ] && [ "${HOSTNAME}" = "$real_submit_hostname" ]; then
     echo "# Check if '$mail' is  realy your email !!!"
     echo "# if it is correct, change warn_mail in your $rcfile to no"
     sleep 10
