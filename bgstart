@@ -753,7 +753,9 @@ if [ "$scriptmode" = "yes" ]; then
 elif [ "$mpi_job" = "no" ] || [ $ncpus -eq 1 ]; then
   cmdline="$*"
 else
-  cmdline="$mpirun_cmd -mode $mode $*"
+  exe="$1"
+  shift
+  [ -z "$1" ] && cmdline="$mpirun_cmd -mode $mode -exe $exe" || cmdline="$mpirun_cmd -mode $mode -exe $exe -args \"$*\""
 fi
 
 cat <<EOF >>$batchname
