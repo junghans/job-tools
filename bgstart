@@ -30,6 +30,8 @@ gateway="vip"
 ncpus=128
 #mode to run in: SMP/DUAL/VN
 mode="SMP"
+#network mode to run in: MESH/TORUS/PREFER_TORUS
+net_mode="PREFER_TORUS"
 #default wall clock time
 wall_time="24:00:00"
 
@@ -227,7 +229,7 @@ cpunr_to_queuename() {
     [ $secs -le 43200  ] || die "Wall time of 128cpu queue is max 12h!"
     [ $secs -le 1800 ] && echo "tiny_30m" || echo "tiny"
   elif [ $1 -eq 256 ]; then
-    [ $secs -le 7200 ] && echo "small_3d" || echo "small"
+    [ $secs -le 7200 ] && echo "small_120m" || echo "small"
   elif [ $1 -eq 512 ]; then
     echo "medium"
   elif [ $1 -eq 1024 ]; then
@@ -342,10 +344,12 @@ QUEUE OPTIONS:
                      Default: $ncpus
     --mode XXX       Change threading mode: SMP, DUAL or VN
                      Default: $mode
+    --netmode XXX    Change network mode: MESH/TORUS/PREFER_TORUS 
+                     Default: $netmode
     --nompi          This is NOT a mpi job, so do NOT add mpirun (or equivalent)
                      to the command line (for ncpus > 1) automatically
     --walltime TIME  Change wall clock time
-                     (use 32cpus and 00:30:00 for express queue,<=16 cpus and 00:15:00 for develop queue)
+                     (use 128cpus and 00:30:00 or 256cpus and 02:00:00 for express queue)
                      Default: $wall_time
 
 
@@ -489,6 +493,11 @@ while [ "${1#-}" != "$1" ]; do
    mode=" SMP DUAL VN "
    [ -n "${mode//* $2 *}" ] && die "Argument of --mode has to be one of:$mode"
    mode="$2"
+   shift 2;;
+  --netmode )
+   netmode=" MESH TORUS PREFER_TORUS "
+   [ -n "${netmode//* $2 *}" ] && die "Argument of --netmode has to be one of:$netmode"
+   netmode="$2"
    shift 2;;
   -p | --print )
    batchname="/dev/stdout"
@@ -675,7 +684,7 @@ cat <<EOF >> $batchname
 # @ wall_clock_limit= $wall_time
 # @ job_type = bluegene
 # @ bg_size = $ncpus
-# @ bg_connection = PREFER_TORUS
+# @ bg_connection = $netmode
 # @ class = $queue_name
 # @ error = $logfile
 # @ output = $logfile
