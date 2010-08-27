@@ -18,6 +18,7 @@
 #version 0.4.1, 23.08.10 -- allow devel queue with 4,8,16 cpus
 #version 0.4.2 ,24.08.10 -- added --selfupdate
 #version 0.4.3 ,25.08.10 -- added --mode options
+#version 0.4.4 ,27.08.10 -- fixed a bug in --submit
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you realy need to change
@@ -192,7 +193,7 @@ submit_job() {
   [ -z "$1" ] && die "submit_job: missing argument"
   [ -f "$1" ] || die "Could not find $1"
   path="$(get_path_from_script $1)" || die
-  message="$(run_on_host "cd $path; $job_submit $submit_opts $batchname")" || die
+  message="$(run_on_host "cd $path; $job_submit $submit_opts $1")" || die
   qecho "$message"
 }
 
@@ -857,7 +858,7 @@ if [ "${HOSTNAME}" != "$real_submit_hostname" ]; then
    if [ -z "$filelist" ]; then
      echo "Run a simulation on $submit_host from here with no needed files ?" >&2
      echo "I do NOT think this make sense, do it manually!" >&2
-     die "to submit the script run: '${0##*/} --sbumit $batchname'"
+     die "to submit the script run: '${0##*/} --submit $batchname'"
    fi
    message=$(run_on_host "test -d \$HOME/$sim_base/$batchname || echo Good") || die
    [ "$message" = "Good" ] || die "$submit_host:\$HOME/$sim_base/$batchname exists"
@@ -868,7 +869,7 @@ if [ "${HOSTNAME}" != "$real_submit_hostname" ]; then
 fi
 
 if [ "$submit" = "no" ]; then
-  [[ "$batchname" != "/dev/stdout" ]] && echo "to submit the script run: '${0##*/} --sbumit $batchname'"
+  [[ "$batchname" != "/dev/stdout" ]] && echo "to submit the script run: '${0##*/} --submit $batchname'"
   exit 0
 fi
 
