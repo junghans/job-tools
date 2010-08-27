@@ -1,6 +1,7 @@
 #! /bin/bash
 
 #version 0.1   ,25.08.08 -- initial version from llstart
+#version 0.1.1 ,27.08.10 -- fixed a bug in --submit
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you realy need to change
@@ -187,7 +188,7 @@ submit_job() {
   [ -z "$1" ] && die "submit_job: missing argument"
   [ -f "$1" ] || die "Could not find $1"
   path="$(get_path_from_script $1)" || die
-  message="$(run_on_host "cd $path; $job_submit $submit_opts $batchname")" || die
+  message="$(run_on_host "cd $path; $job_submit $submit_opts $1")" || die
   qecho "$message"
 }
 
@@ -803,7 +804,7 @@ if [ "${HOSTNAME}" != "$real_submit_hostname" ]; then
 fi
 
 if [ "$submit" = "no" ]; then
-  [[ "$batchname" != "/dev/stdout" ]] && echo "to submit the script run: '${0##*/} --sbumit $batchname'"
+  [[ "$batchname" != "/dev/stdout" ]] && echo "to submit the script run: '${0##*/} --submit $batchname'"
   exit 0
 fi
 
