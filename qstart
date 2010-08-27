@@ -51,6 +51,7 @@
 #version 1.0.1 ,16.08.10 -- added --nooldnodes and extra_XXX_code rc options
 #version 1.0.2 ,19.08.10 -- assigned test.q if walltime <= 20min
 #version 1.0.3 ,24.08.10 -- added --selfupdate
+#version 1.0.4 ,27.08.10 -- fixed a bug in --submit
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you realy need to change
@@ -230,7 +231,7 @@ submit_job() {
   [ -z "$1" ] && die "submit_job: missing argument"
   [ -f "$1" ] || die "Could not find $1"
   path="$(get_path_from_script $1)" || die
-  message="$(run_on_host "cd $path;$job_submit $submit_opts $batchname")" || die
+  message="$(run_on_host "cd $path;$job_submit $submit_opts $1")" || die
   qecho "$message"
 }
 
@@ -865,7 +866,7 @@ else
 fi
 
 if [ "$submit" = "no" ]; then
-  [[ "$batchname" != "/dev/stdout" ]] && echo "to submit the script run: '${0##*/} --sbumit $batchname'"
+  [[ "$batchname" != "/dev/stdout" ]] && echo "to submit the script run: '${0##*/} --submit $batchname'"
   exit 0
 fi
 
