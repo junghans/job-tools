@@ -349,7 +349,7 @@ self_update() {
   new_version="$(echo "${new_version//[^0-9]}" | sed -e 's/^..$/&0/' -e 's/^...$/&0/')"
   old_version="$(echo "${old_version//[^0-9]}" | sed -e 's/^..$/&0/' -e 's/^...$/&0/')"
   if [ $new_version -gt $old_version ]; then
-    echo "I will try replace myself now with $selfurl in 5 secs (CTRL-C to stop)"
+    echo "I will try replace myself($0) now with $selfurl in 5 secs (CTRL-C to stop)"
     sleep 5
     wget -O "${0}" "${selfurl}"
   else
