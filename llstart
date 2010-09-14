@@ -19,6 +19,7 @@
 #version 0.4.2 ,24.08.10 -- added --selfupdate
 #version 0.4.3 ,25.08.10 -- added --mode options
 #version 0.4.4 ,27.08.10 -- fixed a bug in --submit
+#version 0.4.5 ,14.09.10 -- fixed a bug iin cpunr_to_queuename
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you realy need to change
@@ -247,7 +248,7 @@ cpunr_to_queuename() {
   elif [ $1 -eq 8 ] && [ "$mode" = "smt" ]; then
     [ $secs -le 900 ] && echo "develop_16p" || "small"
   elif [ $1 -eq 16 ] && [ "$mode" = "normal" ]; then
-    [ $secs -le 900 ] && echo "develop_16" || echo "small"
+    [ $secs -le 900 ] && echo "develop_16p" || echo "small"
   elif [ $1 -eq 16 ] && [ "$mode" = "smt" ]; then
     [ $secs -le 1800 ] && echo "express" || echo "small"
   elif [ $1 -eq 32 ]; then
@@ -312,7 +313,7 @@ self_update() {
   new_version="$(echo "${new_version//[^0-9]}" | sed -e 's/^..$/&0/' -e 's/^...$/&0/')"
   old_version="$(echo "${old_version//[^0-9]}" | sed -e 's/^..$/&0/' -e 's/^...$/&0/')"
   if [ $new_version -gt $old_version ]; then
-    echo "I will try replace myself now with $selfurl in 5 secs (CTRL-C to stop)"
+    echo "I will try replace myself($0) now with $selfurl in 5 secs (CTRL-C to stop)"
     sleep 5
     wget -O "${0}" "${selfurl}"
   else
