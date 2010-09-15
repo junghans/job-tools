@@ -786,7 +786,7 @@ else
   sim_dir="\$HOME/$sim_base/$batchname"
 fi
 
-if [ $(run_on_host 'echo $SHELL') != "/bin/bash" ]; then
+if [ "$(run_on_host 'echo $SHELL')" != "/bin/bash" ]; then
   echo "Your shell of $submit_host is NOT /bin/bash -> I will guarantee for nothing, change your shell to bash or take the risk ;-)" >&2
 else
   sh_source="[ -f ~/.bashrc ] && source ~/.bashrc"
