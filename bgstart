@@ -2,6 +2,7 @@
 
 #version 0.1   ,25.08.08 -- initial version from llstart
 #version 0.1.1 ,27.08.10 -- fixed a bug in --submit
+#version 0.1.2 ,15.09.10 -- fixed a bug in run_on_host
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you really need to change
@@ -121,7 +122,8 @@ run_on_host() {
   local message
   [ -z "$1" ] && die "run_on_host: Missing argument"
   if [ "$HOSTNAME" = "$real_submit_hostname" ]; then
-    message=$($@ 2>&1) || die "'$*' failed\nError message: $message"
+    #we need bash -c here because $@ could contain $USER or so
+    message="$(bash -c "$*" 2>&1)" || die "'$*' failed\nError message: $message"
   else
     [ -n "$gateway" ] && ssh="ssh $gateway" || ssh="ssh"
     if [ "$checked_connection" = "no" ]; then
@@ -717,7 +719,7 @@ else
   sim_dir="\$HOME/$sim_base/$batchname"
 fi
 
-if [ $(run_on_host 'echo $SHELL') != "/bin/bash" ]; then
+if [ "$(run_on_host 'echo $SHELL')" != "/bin/bash" ]; then
   echo "Your shell of $submit_host is NOT /bin/bash -> I will guarantee for nothing, change your shell to bash or take the risk ;-)" >&2
 else
   sh_source="[ -f ~/.bashrc ] && source ~/.bashrc"
