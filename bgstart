@@ -33,7 +33,7 @@ ncpus=128
 #mode to run in: SMP/DUAL/VN
 mode="SMP"
 #network mode to run in: MESH/TORUS/PREFER_TORUS
-net_mode="PREFER_TORUS"
+netmode="PREFER_TORUS"
 #default wall clock time
 wall_time="24:00:00"
 
