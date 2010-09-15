@@ -54,7 +54,7 @@
 #version 1.0.4 ,27.08.10 -- fixed a bug in --submit
 
 #BEGIN DEFAULTS
-#defaults options, uncomment and change only the lines you realy need to change
+#defaults options, uncomment and change only the lines you really need to change
 #keep it in bash style, source must work on this file
 
 ############## QUEUE stuff #########

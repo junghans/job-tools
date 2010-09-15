@@ -4,7 +4,7 @@
 #version 0.1.1 ,27.08.10 -- fixed a bug in --submit
 
 #BEGIN DEFAULTS
-#defaults options, uncomment and change only the lines you realy need to change
+#defaults options, uncomment and change only the lines you really need to change
 #keep it in bash style, source must work on this file
 
 ############## QUEUE stuff #########
@@ -699,7 +699,7 @@ else
   echo '# @ notification = complete' >> $batchname
   echo "# @ notify_user = $mail" >> $batchname
   if [ "$warn_mail" = "yes" ] && [ "${HOSTNAME}" = "$real_submit_hostname" ]; then
-    echo "# Check if '$mail' is  realy your email !!!"
+    echo "# Check if '$mail' is  really your email !!!"
     echo "# if it is correct, change warn_mail in your $rcfile to no"
     sleep 10
   fi
