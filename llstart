@@ -137,8 +137,17 @@ run_on_host() {
     ssh="bash -c"
   else
     if [ "$checked_connection" = "no" ]; then
-      ssh $submit_host true || die "Heuristic connection check failed.\nChange runhost variable in ${0} (now set to $submit_host)
-       or make an ssh alias using sshalias (from evergreen repo) with 'sshalias -a $submit_host=YOURNAME@vip.rzg.mpg.de'"
+      ssh $submit_host true || die "Heuristic connection check failed.
+Change 'submit_host' variable in your setting file ($rcfile), which is now set to '$submit_host'
+or make an ssh alias by adding the following block to your ~/.ssh/config:
+####BEGIN COPY####
+Host $submit_host
+	User <YOURNAME>
+	Hostname vip.rzg.mpg.de
+####END COPY####
+
+To generate a setting file run:
+   '${0##*/} --showdefaults > $rcfile'"
       checked_connection="yes"
     fi
     ssh="ssh $submit_host"
@@ -744,7 +753,11 @@ else
   echo "# @ notify_user = $mail" >> $batchname
   if [ "$warn_mail" = "yes" ] && [ "${HOSTNAME}" = "$real_submit_hostname" ]; then
     echo "# Check if '$mail' is  really your email !!!"
-    echo "# if it is correct, change warn_mail in your $rcfile to no"
+    echo "# if it is correct, change 'warn_mail' variable in your setting file ($rcfile) to no"
+    echo "# if it is not correct, change 'mail' in $rcfile to the right adress or"
+    echo "# add --nomail option"
+    echo "# To generate a setting file run:"
+    echo "#    '${0##*/} --showdefaults > $rcfile'"
     sleep 10
   fi
 fi
