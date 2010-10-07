@@ -866,7 +866,7 @@ else
 fi
 
 if [ "$submit" = "no" ]; then
-  [[ "$batchname" != "/dev/stdout" ]] && echo "to submit the script run: '${0##*/} --submit $batchname'"
+  [[ "$batchname" != "/dev/stdout" ]] && qecho "to submit the script run: '${0##*/} --submit $batchname'"
   exit 0
 fi
 
