@@ -3,6 +3,7 @@
 #version 0.1   ,25.08.08 -- initial version from llstart
 #version 0.1.1 ,27.08.10 -- fixed a bug in --submit
 #version 0.1.2 ,15.09.10 -- fixed a bug in run_on_host
+#version 0.1.3 ,03.12.10 -- --showdir will print scp like path
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you really need to change
@@ -439,8 +440,12 @@ show_path() {
   message=$(run_on_host "$job_status -l $1") || die
   path="$(echo -e "$message" | awk '/Initial Working Dir:/{print $4}')"
   [[ -z "$path" ]] && die "show_path: Could not get path"
-  echo "$path"
-  return $?
+  if [ "${HOSTNAME}" != "$real_submit_hostname" ]; then
+    echo "${gateway}:$path"
+  else
+    echo "$path"
+  fi
+  return 0
 }
 
 copy_back() {
