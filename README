@@ -10,6 +10,7 @@ findhost   - find hostname matching a pattern
 lstart     - a local "queueing" system, start jobs somewhere,
              get a mail when they are finished, noce nohup, ...
 qstart     - run a command on the thop cluster
+q2start     - run a command on the thinc cluster
 llstart    - start simulation on vip (power6)
 bgstart    - start simulation on genuis (bluegene)
 mpilist    - find a host which is free
@@ -28,6 +29,7 @@ all
 hosts/*
 findhost
 qstart
+q2start
 clean_thop
 lstart
 llstart
