@@ -14,7 +14,7 @@ show="yes"
 add_start () {
    check_start $1
    echo $1 >> $statuslist
-   echo $1 added from $statuslist
+   echo $1 added to $statuslist
 }
 
 check_statusfile () {
