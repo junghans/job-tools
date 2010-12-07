@@ -2,6 +2,7 @@
 
 #version 0.1   ,03.12.10 -- initial version from qstart
 #version 0.1.1 ,06.12.10 -- fixed a bug in --alljobs
+#version 0.1.2 ,07.12.10 -- added --queue option
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you really need to change
@@ -231,17 +232,18 @@ extra_queue_header() {
 }
 
 cpunr_to_queuename() {
-  local queue secs
+  local secs
   [ -z "$1" ] && die "cpunr_to_queuename: Missing argument"
   number_check "$1" "cpunr_to_queuename"
   secs=$(walltime_to_sec $wall_time) || die
   [ $secs -gt 129600 ] && die "Wall time bigger than 36h is not possible"
-  if [ $1 -gt 8 ]; then
+  if [ -n "$specialq" ]; then
+    echo "$specialq"
+  elif [ $1 -gt 8 ]; then
     die "Do not know how to handle this Number of cpus '$1'"
   else
-    queue="Std8Cores.q"
+    echo "Std8Cores.q"
   fi
-  echo $queue
 }
 
 walltime_to_sec() {
@@ -346,6 +348,8 @@ QUEUE OPTIONS:
                      Default: $wall_time
     --runat HOST     Specify the host to run yourself
     --runatnow HOST  like --runat, but one do it one time, not after the resubmitting
+    --queue  NAME.q  Overwrite the queue to be used with NAME.q
+                     (also in the case of --queueinfo)
 
 
 JOBS OPTIONS:
@@ -556,9 +560,9 @@ while [ "${1#-}" != "$1" ]; do
    --runatnow )
    submit_opts="$submit_opts -l hostame=$2"
    shift 2;;
-   --nooldnodes )
-   no_old_nodes="yes"
-   shift ;;
+  --queue )
+   specialq="$2"
+   shift 2;;
    --showjobs )
    run_on_host "$job_status -u $USER"
    exit $?;;

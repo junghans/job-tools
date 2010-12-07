@@ -52,6 +52,7 @@
 #version 1.0.2 ,19.08.10 -- assigned test.q if walltime <= 20min
 #version 1.0.3 ,24.08.10 -- added --selfupdate
 #version 1.0.4 ,27.08.10 -- fixed a bug in --submit
+#version 1.0.5 ,07.12.10 -- added --queue option
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you really need to change
@@ -287,7 +288,9 @@ cpunr_to_queuename() {
   [ -z "$1" ] && die "cpunr_to_queuename: Missing argument"
   secs=$(walltime_to_sec $wall_time) || die
   [ $secs -gt 129600 ] && die "Wall time bigger than 36h is not possible"
-  if [ $1 -eq 1 ]; then
+  if [ -n "$specialq" ]; then
+    queue="$specialq"
+  elif [ $1 -eq 1 ]; then
     queue="all.q"
   elif [ $1 -eq 2 ]; then
     queue="dual.q"
@@ -419,6 +422,8 @@ QUEUE OPTIONS:
                      Default: $wall_time
     --runat HOST     Specify the host to run yourself
     --runatnow HOST  like --runat, but one do it one time, not after the resubmitting
+    --queue  NAME.q  Overwrite the queue to be used with NAME.q
+                     (also in the case of --queueinfo)
     --nooldnodes     Only use host >=thop63
 
 
@@ -632,6 +637,9 @@ while [ "${1#-}" != "$1" ]; do
    --nooldnodes )
    no_old_nodes="yes"
    shift ;;
+   --queue )
+   specialq="$2"
+   shift 2;;
    --showjobs )
    run_on_host "$job_status -u $USER"
    exit $?;;

@@ -21,6 +21,7 @@
 #version 0.4.4 ,27.08.10 -- fixed a bug in --submit
 #version 0.4.5 ,14.09.10 -- fixed a bug iin cpunr_to_queuename
 #version 0.4.5 ,03.12.10 -- --showdir will print scp like path
+#version 0.4.6 ,07.12.10 -- added --queue option
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you really need to change
@@ -242,7 +243,9 @@ cpunr_to_queuename() {
   [ -z "$1" ] && die "cpunr_to_queuename: Missing argument"
   secs=$(walltime_to_sec $wall_time) || die
   [ $secs -gt 86400 ] && die "Wall time bigger than 24h is not possible"
-  if [ $1 -eq 1 ]; then
+  if [ -n "$specialq" ]; then
+    echo "$specialq"
+  elif [ $1 -eq 1 ]; then
     [ $secs -le 3600 ] || die "Wall time of single queue is max 1h!"
     [ "$mode" = "smt" ] && die "Single queue in smt mode is not possible - try -4"
     echo "single"
@@ -390,6 +393,8 @@ QUEUE OPTIONS:
                      (use 32cpus and 00:30:00 for express queue,<=16 cpus and 00:15:00 for develop queue)
                      Default: $wall_time
     --ibm-hacks      Some extra ibm hack (EXPERIMENTAL)
+    --queue  NAME    Overwrite the queue to be used with NAME
+                     (also in the case of --queueinfo)
 
 
 JOBS OPTIONS:
@@ -595,6 +600,9 @@ while [ "${1#-}" != "$1" ]; do
   --ibm-hacks)
    ibm_hacks="yes"
    shift 1;;
+  --queue )
+   specialq="$2"
+   shift 2;;
   --sleeptime)
    number_check "$2" "--sleeptime"
    sleeptime="$2"

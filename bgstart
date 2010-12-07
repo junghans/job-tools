@@ -4,6 +4,7 @@
 #version 0.1.1 ,27.08.10 -- fixed a bug in --submit
 #version 0.1.2 ,15.09.10 -- fixed a bug in run_on_host
 #version 0.1.3 ,03.12.10 -- --showdir will print scp like path
+#version 0.1.4 ,07.12.10 -- added --queue option
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you really need to change
@@ -242,7 +243,9 @@ cpunr_to_queuename() {
   [ -z "$1" ] && die "cpunr_to_queuename: Missing argument"
   secs=$(walltime_to_sec $wall_time) || die
   [ $secs -gt 86400 ] && die "Wall time bigger than 24h is not possible"
-  if [ $1 -eq 128 ]; then
+  if [ -n "$specialq" ]; then
+    echo "$specialq"
+  elif [ $1 -eq 128 ]; then
     [ $secs -le 43200  ] || die "Wall time of 128cpu queue is max 12h!"
     [ $secs -le 1800 ] && echo "tiny_30m" || echo "tiny"
   elif [ $1 -eq 256 ]; then
@@ -368,6 +371,8 @@ QUEUE OPTIONS:
     --walltime TIME  Change wall clock time
                      (use 128cpus and 00:30:00 or 256cpus and 02:00:00 for express queue)
                      Default: $wall_time
+    --queue  NAME    Overwrite the queue to be used with NAME
+                     (also in the case of --queueinfo)
 
 
 JOBS OPTIONS:
@@ -573,6 +578,9 @@ while [ "${1#-}" != "$1" ]; do
    -w | --wait)
    wait="yes"
    shift 1;;
+  --queue )
+   specialq="$2"
+   shift 2;;
   --sleeptime)
    number_check "$2" "--sleeptime"
    sleeptime="$2"
