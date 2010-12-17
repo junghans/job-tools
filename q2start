@@ -4,6 +4,7 @@
 #version 0.1.1 ,06.12.10 -- fixed a bug in --alljobs
 #version 0.1.2 ,07.12.10 -- added --queue option
 #version 0.1.3 ,12.12.10 -- fixed a bug in --showlog
+#version 0.1.4 ,17.12.10 -- always run on 8 cpus
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you really need to change
@@ -31,7 +32,7 @@ real_submit_hostname="$submit_host"
 #submit the script by default: yes/no
 submit="yes"
 #default number of cpus to use
-ncpus=1
+ncpus=8
 #default wall clock time
 wall_time="36:00:00"
 #on which node to run by default, empty = no default
@@ -240,8 +241,8 @@ cpunr_to_queuename() {
   [ $secs -gt 129600 ] && die "Wall time bigger than 36h is not possible"
   if [ -n "$specialq" ]; then
     echo "$specialq"
-  elif [ $1 -gt 8 ]; then
-    die "Do not know how to handle this Number of cpus '$1'"
+  elif [ $1 -ne 8 ]; then
+    die "Do not know how to handle this Number of cpus '$1' - only 8 cpus are supported at this time"
   else
     echo "Std8Cores.q"
   fi
@@ -685,9 +686,8 @@ cat <<EOF >> $batchname
 #$ -j y
 #$ -o $logfile
 #$ -l h_rt=${wall_time}
-EOF
-#put this line back if there are more than one queue
 #$ -q ${queue_name}
+EOF
 
 [ -n "$(extra_queue_header $ncpus)" ] && extra_queue_header $ncpus >> $batchname
 [ -n "$hostname" ] && echo "#$ -l hostname=${hostname}" >> $batchname
