@@ -342,7 +342,7 @@ self_update() {
   [ -z "$(type -p wget)" ] && die "wget not found"
   if version_check; then
     echo "I will try replace myself now with $selfurl (CTRL-C to stop)"
-    countdown 5
+    sleep 5
     wget -O "${0}" "${selfurl}"
   else
     echo "No updated needed"
