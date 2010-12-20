@@ -22,6 +22,7 @@
 #version 0.4.5 ,14.09.10 -- fixed a bug iin cpunr_to_queuename
 #version 0.4.5 ,03.12.10 -- --showdir will print scp like path
 #version 0.4.6 ,07.12.10 -- added --queue option
+#version 0.5.0 ,20.12.10 -- added default version check
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you really need to change
@@ -120,7 +121,8 @@ logfile=""
 #rc to read
 rcfile="~/.${0##*/}rc"
 #where to look for updates
-selfurl="http://job-tools.cj-overlay.googlecode.com/hg/llstart"
+branch=default
+selfurl="http://job-tools.cj-overlay.googlecode.com/hg/llstart?r=$branch"
 
 qecho() {
   [[ "$quiet" = "no" ]] && echo -e "$*"
@@ -314,20 +316,33 @@ get_version() {
   sed -ne 's/^#version[[:space:]]*\([^[:space:]]*\)[[:space:]]*,.*$/\1/p' $1 | sed -n '$p'
 }
 
-self_update() {
-  local new_version old_version
-  [ -z "$(type -p wget)" ] && die "wget not found"
-  new_version="$(wget -qO- "${selfurl}")" || die "self_update: wget fetch from $selfurl failed"
-  new_version="$(echo -e "${new_version}" | get_version)"
-  [ -z "${new_version}" ] && die "self_update: Could not fetch new version number"
+get_webversion() {
+  local version
+  if [ "$1" = "-q" ]; then
+    version="$(wget -qO- "${selfurl}" | get_version)"
+  else
+    [ -z "$(type -p wget)" ] && die "wget not found"
+    version="$(wget -qO- "${selfurl}" )" || die "self_update: wget fetch from $selfurl failed"
+    version="$(echo -e "${version}" | get_version)"
+    [ -z "${version}" ] && die "get_webversion: Could not fetch new version number"
+  fi
+  echo "${version}"
+}
+
+version_check() {
   old_version="$(get_version $0)"
-  echo "Version on googlecode is: $new_version"
-  echo "Local Version: $old_version"
-  new_version="$(echo "${new_version//[^0-9]}" | sed -e 's/^..$/&0/' -e 's/^...$/&0/')"
-  old_version="$(echo "${old_version//[^0-9]}" | sed -e 's/^..$/&0/' -e 's/^...$/&0/')"
-  if [ $new_version -gt $old_version ]; then
-    echo "I will try replace myself($0) now with $selfurl in 5 secs (CTRL-C to stop)"
-    sleep 5
+  [ "$1" = "-q" ] && new_version="$(get_webversion -q)" || new_version="$(get_webversion)"
+  [ "$1" = "-q" ] || echo "Version of $selfurl is: $new_version"
+  [ "$1" = "-q" ] || echo "Local Version: $old_version"
+  expr "${old_version}" \< "${new_version}" > /dev/null
+  return $?
+}
+
+self_update() {
+  [ -z "$(type -p wget)" ] && die "wget not found"
+  if version_check; then
+    echo "I will try replace myself now with $selfurl (CTRL-C to stop)"
+    countdown 5
     wget -O "${0}" "${selfurl}"
   else
     echo "No updated needed"
@@ -666,7 +681,7 @@ while [ "${1#-}" != "$1" ]; do
    show_logs "$2" "tail -f"
    exit $?;;
   -v | --version)
-   echo ${0##*/}, version $(get_version $0) by C. Junghans
+   echo "${0##*/}, version $(get_version $0) ($branch branch) by C. Junghans"
    exit 0;;
   --selfupdate)
    self_update
@@ -684,6 +699,15 @@ while [ "${1#-}" != "$1" ]; do
    die "Unknown option '$1'";;
  esac
 done
+
+if version_check -q; then
+  x=${0##*/}; x=${x//?/#}
+  echo "##################################$x"
+  echo "# Your version of ${0##*/} is obsolete ! #"
+  echo "# Please run '${0##*/} --selfupdate'     #"
+  echo "##################################$x"
+  unset x
+fi
 
 if [ -z "$1" ]; then
   [ -z "${default_opts}" ] && die "Missing program name (try --help)"
