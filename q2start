@@ -6,6 +6,7 @@
 #version 0.1.3 ,12.12.10 -- fixed a bug in --showlog
 #version 0.1.4 ,17.12.10 -- always run on 8 cpus
 #version 0.2.0 ,20.12.10 -- added default version check
+#version 0.2.1 ,12.01.11 -- single cpu is also allowed
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you really need to change
@@ -33,7 +34,7 @@ real_submit_hostname="$submit_host"
 #submit the script by default: yes/no
 submit="yes"
 #default number of cpus to use
-ncpus=8
+ncpus=1
 #default wall clock time
 wall_time="36:00:00"
 #on which node to run by default, empty = no default
@@ -232,7 +233,7 @@ number_check(){
 extra_queue_header() {
   [ -z "$1" ] && die "extra_queue_header: Missing argument"
   number_check "$1" "extra_queue_header"
-  echo "#$ -pe openmpi $1"
+  [ $1 -gt 1 ] && echo "#$ -pe openmpi $1"
 }
 
 cpunr_to_queuename() {
@@ -243,10 +244,12 @@ cpunr_to_queuename() {
   [ $secs -gt 129600 ] && die "Wall time bigger than 36h is not possible"
   if [ -n "$specialq" ]; then
     echo "$specialq"
-  elif [ $1 -ne 8 ]; then
-    die "Do not know how to handle this Number of cpus '$1' - only 8 cpus are supported at this time"
-  else
+  elif [ $1 -eq 1 ]; then
+    echo "Single.q"
+  elif [ $1 -eq 8 ]; then
     echo "Std8Cores.q"
+  else
+    die "Do not know how to handle this Number of cpus '$1' - only 1/8 cpus are supported at this time"
   fi
 }
 
@@ -357,7 +360,7 @@ SCRIPT OPTIONS:
 
 QUEUE OPTIONS:
 -N                   Number of cpus (also determines the queue together with walltime)
-                     Possible: 1-8
+                     Possible: 1,8
                      Default: $ncpus
     --nompi          This is NOT a mpi job, so do NOT add mpirun (or equivalent)
                      to the command line (for ncpus > 1) automatically
