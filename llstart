@@ -23,6 +23,7 @@
 #version 0.4.5 ,03.12.10 -- --showdir will print scp like path
 #version 0.4.6 ,07.12.10 -- added --queue option
 #version 0.5.0 ,20.12.10 -- added default version check
+#version 0.5.1 ,19.01.11 -- fixed a bug when args were quoted
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you really need to change
@@ -870,10 +871,14 @@ if [ "$scriptmode" = "yes" ]; then
     cat "$i" >> $batchname
   done
   cmdline=""
-elif [ "$mpi_job" = "no" ] || [ $ncpus -eq 1 ]; then
-  cmdline="$*"
 else
-  cmdline="$mpirun_cmd $*"
+  cmdline=""
+  for i in "$@"; do
+    [ -z "${i//*[[:space:]]*}" ] && cmdline="${cmdline} '$i'" || cmdline="${cmdline} $i"
+  done
+  if [ "$mpi_job" = "no" ] || [ $ncpus -eq 1 ]; then
+    cmdline="$mpirun_cmd $cmdline"
+  fi
 fi
 
 cat <<EOF >>$batchname

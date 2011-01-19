@@ -7,6 +7,7 @@
 #version 0.1.4 ,17.12.10 -- always run on 8 cpus
 #version 0.2.0 ,20.12.10 -- added default version check
 #version 0.2.1 ,12.01.11 -- single cpu is also allowed
+#version 0.2.2 ,19.01.11 -- fixed a bug when args were quoted
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you really need to change
@@ -787,10 +788,14 @@ if [ "$scriptmode" = "yes" ]; then
     cat "$i" >> $batchname
   done
   cmdline=""
-elif [ "$mpi_job" = "no" ] || [ $ncpus -eq 1 ]; then
-  cmdline="$*"
 else
-  cmdline="$mpirun_cmd -np $ncpus $*"
+  cmdline=""
+  for i in "$@"; do
+    [ -z "${i//*[[:space:]]*}" ] && cmdline="${cmdline} '$i'" || cmdline="${cmdline} $i"
+  done
+  if [ "$mpi_job" = "no" ] || [ $ncpus -eq 1 ]; then
+    cmdline="$mpirun_cmd -np $ncpus $cmdline"
+  fi
 fi
 
 cat <<EOF >>$batchname
