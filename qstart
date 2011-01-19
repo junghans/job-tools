@@ -54,6 +54,7 @@
 #version 1.0.4 ,27.08.10 -- fixed a bug in --submit
 #version 1.0.5 ,07.12.10 -- added --queue option
 #version 1.1.0 ,20.12.10 -- added default version check
+#version 1.1.1 ,19.01.11 -- nodes above thop82 are not in thinc queue
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you really need to change
@@ -75,7 +76,7 @@ job_info="$queue_path/qconf"
 submit_opts=""
 #name of the host, where to submit the jobs
 #maybe create an sshalias
-submit_host="thop100"
+submit_host="thop82"
 #the real hostname ($HOSTNAME), when logon submit_host
 real_submit_hostname="$submit_host"
 #submit the script by default: yes/no
@@ -327,12 +328,12 @@ walltime_to_sec() {
 }
 
 expand_queue(){
-  local i
+  local i max=82
   [ -z "$1" ] && die "expand_queue: Missing argument"
-  for ((i=63;i<102;i++)); do
+  for ((i=63;i<$max;i++)); do
     echo -n "${1}@thop${i},"
   done
-  echo ${1}@thop102
+  echo ${1}@thop$max
 }
 
 queue_info() {
