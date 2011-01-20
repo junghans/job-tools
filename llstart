@@ -24,6 +24,7 @@
 #version 0.4.6 ,07.12.10 -- added --queue option
 #version 0.5.0 ,20.12.10 -- added default version check
 #version 0.5.1 ,19.01.11 -- fixed a bug when args were quoted
+#version 0.5.2 ,20.01.11 -- bug in version 0.5.1 due to wrong logic
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you really need to change
@@ -876,7 +877,7 @@ else
   for i in "$@"; do
     [ -z "${i//*[[:space:]]*}" ] && cmdline="${cmdline} '$i'" || cmdline="${cmdline} $i"
   done
-  if [ "$mpi_job" = "no" ] || [ $ncpus -eq 1 ]; then
+  if [ "$mpi_job" = "yes" ] && [ $ncpus -gt 1 ]; then
     cmdline="$mpirun_cmd $cmdline"
   fi
 fi
