@@ -790,7 +790,9 @@ if [ "$scriptmode" = "yes" ]; then
   done
   cmdline=""
 else
-  cmdline=""
+  #do not add quotes to the first argument
+  cmdline="$1"
+  shift
   for i in "$@"; do
     [ -z "${i//*[[:space:]]*}" ] && cmdline="${cmdline} '$i'" || cmdline="${cmdline} $i"
   done
