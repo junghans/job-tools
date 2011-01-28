@@ -57,6 +57,7 @@
 #version 1.1.1 ,19.01.11 -- nodes above thop82 are not in thinc queue
 #version 1.1.2 ,19.01.11 -- fixed a bug when args were quoted
 #version 1.1.3 ,20.01.11 -- bug in version 1.1.2 due to wrong logic
+#version 1.1.4 ,28.01.11 -- nomail is now default
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you really need to change
@@ -89,6 +90,8 @@ ncpus=1
 wall_time="36:00:00"
 #on which node to run by default, empty = no default
 hostname=""
+#overwrite the queue to be used this, empty = normal queue
+specialq=""
 #no old node, will only use nodes >=thop63
 no_old_nodes="no"
 
@@ -136,8 +139,9 @@ scriptmode="no"
 wait="no"
 #sec to wain in the --wait loop
 sleeptime=900
-#default email adress, empty = no email
-mail="$USER@mpip-mainz.mpg.de"
+#default email adress
+#empty/none = no email, auto = leave it to queue where to send the mail
+mail="none"
 #header to show with --showjobs option
 header="JOBS ON L.C.A.R.S. (thopXX)"
 #shell to be used by default, none=bash
@@ -158,7 +162,7 @@ logfile=""
 #rc to read
 rcfile="~/.${0##*/}rc"
 #where to look for updates
-branch=default
+branch=mpip
 selfurl="http://job-tools.cj-overlay.googlecode.com/hg/qstart?r=$branch"
 
 qecho() {
@@ -410,8 +414,7 @@ SCRIPT OPTIONS:
                      (implies --nompi)
 -e, --emptytemplate  Same as --template ""
 -m, --mail NAME      send mail to NAME
-                     default: '$mail'
--x, --nomail         will not use mail function
+                     default: '$mail' (use 'auto' for automatic)
 -f, --finish NAME    Touches file NAME when succesfully finished
 -t, --time           Adds a date command before and after the command
 -p, --print          Only print the submit script (implies --nosubmit)
@@ -614,9 +617,6 @@ while [ "${1#-}" != "$1" ]; do
    -t | --time )
    time="yes"
    shift ;;
-   -x | --nomail)
-   mail=''
-   shift ;;
    -r | --resub | --resubmit)
    resubmit_file="$2"
    shift 2;;
@@ -792,11 +792,11 @@ EOF
 [ -n "$hostname" ] && echo "#$ -l hostname=${hostname}" >> $batchname
 
 #To mail or not to mail
-if [ -z "$mail" ]; then
+if [ -z "$mail" ] || [ "$mail" = "none" ]; then
   echo "#$ -m n" >> $batchname
 else
   echo "#$ -m e" >> $batchname
-  echo "#$ -M $mail" >> $batchname
+  [ "$mail" = "auto" ] || echo "#$ -M $mail" >> $batchname
 fi
 
 if [ "$myshell" = "bash" ]; then

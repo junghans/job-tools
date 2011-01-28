@@ -25,6 +25,7 @@
 #version 0.5.0 ,20.12.10 -- added default version check
 #version 0.5.1 ,19.01.11 -- fixed a bug when args were quoted
 #version 0.5.2 ,20.01.11 -- bug in version 0.5.1 due to wrong logic
+#version 0.5.3 ,28.01.11 -- nomail is now default
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you really need to change
@@ -54,6 +55,8 @@ ncpus=32
 mode="normal"
 #default wall clock time
 wall_time="24:00:00"
+#overwrite the queue to be used this, empty = normal queue
+specialq=""
 
 ########### MPI stuff ###############
 #should mpirun (or equivalent) be added: yes/no
@@ -99,10 +102,9 @@ scriptmode="no"
 wait="no"
 #sec to wain in the --wait loop
 sleeptime=900
-#default email adress, empty = no email
-mail="$USER@mpip-mainz.mpg.de"
-#warn about wrong email if using llstart on real_submit_hostname
-warn_mail="yes"
+#default email adress
+#empty/none = no email, auto = leave it to queue where to send the mail
+mail="none"
 #header to show with --showjobs option
 header="JOBS ON vip"
 #shell to be used by default, none=bash
@@ -123,7 +125,7 @@ logfile=""
 #rc to read
 rcfile="~/.${0##*/}rc"
 #where to look for updates
-branch=default
+branch=mpip
 selfurl="http://job-tools.cj-overlay.googlecode.com/hg/llstart?r=$branch"
 
 qecho() {
@@ -373,9 +375,8 @@ SCRIPT OPTIONS:
     --script         Will use the argument as base scripts and concatenate them
                      (implies --nompi)
 -e, --emptytemplate  Same as --template ""
--m, --mail NAME      send mail to NAME
-                     default: '$mail'
--x, --nomail         will not use mail function
+-m, --mail NAME      send mail to NAME 
+                     default: '$mail' (use 'auto' for automatic)
 -f, --finish NAME    Touches file NAME when succesfully finished
 -t, --time           Adds a date command before and after the command
 -p, --print          Only print the submit script (implies --nosubmit)
@@ -605,9 +606,6 @@ while [ "${1#-}" != "$1" ]; do
    -t | --time )
    time="yes"
    shift ;;
-   -x | --nomail)
-   mail=''
-   shift ;;
    -r | --resub | --resubmit)
    resubmit_file="$2"
    shift 2;;
@@ -785,20 +783,11 @@ cat <<EOF >> $batchname
 EOF
 
 #To mail or not to mail
-if [ -z "$mail" ]; then
+if [ -z "$mail" ] || [ "$mail" = "none" ]; then
   echo '# @ notification = never' >> $batchname
 else
   echo '# @ notification = complete' >> $batchname
-  echo "# @ notify_user = $mail" >> $batchname
-  if [ "$warn_mail" = "yes" ] && [ "${HOSTNAME}" = "$real_submit_hostname" ]; then
-    echo "# Check if '$mail' is  really your email !!!"
-    echo "# if it is correct, change 'warn_mail' variable in your setting file ($rcfile) to no"
-    echo "# if it is not correct, change 'mail' in $rcfile to the right adress or"
-    echo "# add --nomail option"
-    echo "# To generate a setting file run:"
-    echo "#    '${0##*/} --showdefaults > $rcfile'"
-    sleep 10
-  fi
+  [ "$mail" = "auto" ] || echo "# @ notify_user = $mail" >> $batchname
 fi
 
 cat <<EOF >> $batchname
