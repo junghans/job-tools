@@ -26,6 +26,7 @@
 #version 0.5.1 ,19.01.11 -- fixed a bug when args were quoted
 #version 0.5.2 ,20.01.11 -- bug in version 0.5.1 due to wrong logic
 #version 0.5.3 ,28.01.11 -- nomail is now default
+#version 0.5.4 ,02.02.11 -- fixed a typo in cpunr_to_queuename (thx to Sasha)
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you really need to change
@@ -259,13 +260,13 @@ cpunr_to_queuename() {
     [ "$mode" = "normal" ] && die "Dual queue only possible in smt mode"
     [ $secs -le 900 ] && echo "develop_4p" || echo "small"
   elif [ $1 -eq 4 ] && [ "$mode" = "normal" ]; then
-    [ $secs -le 900 ] && echo "develop_4p" || "small"
+    [ $secs -le 900 ] && echo "develop_4p" || echo "small"
   elif [ $1 -eq 4 ] && [ "$mode" = "smt" ]; then
-    [ $secs -le 900 ] && echo "develop_8p" || "small"
+    [ $secs -le 900 ] && echo "develop_8p" || echo "small"
   elif [ $1 -eq 8 ] && [ "$mode" = "normal" ]; then
-    [ $secs -le 900 ] && echo "develop_8p" || "small"
+    [ $secs -le 900 ] && echo "develop_8p" || echo "small"
   elif [ $1 -eq 8 ] && [ "$mode" = "smt" ]; then
-    [ $secs -le 900 ] && echo "develop_16p" || "small"
+    [ $secs -le 900 ] && echo "develop_16p" || echo "small"
   elif [ $1 -eq 16 ] && [ "$mode" = "normal" ]; then
     [ $secs -le 900 ] && echo "develop_16p" || echo "small"
   elif [ $1 -eq 16 ] && [ "$mode" = "smt" ]; then
