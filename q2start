@@ -11,6 +11,7 @@
 #version 0.2.3 ,20.01.11 -- bug in version 0.2.2 due to wrong logic
 #version 0.2.4 ,28.01.11 -- nomail is now default
 #version 0.2.5 ,04.02.11 -- updated help message
+#version 0.2.6 ,04.02.11 -- added longhelp message
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you really need to change
@@ -305,7 +306,7 @@ get_webversion() {
 
 version_check() {
   [ -z "$(type -p wget)" ] && return 1
-  [ "$(wget -q -O - $verurl?name=${0##*/}&i=${USER}%40$HOSTNAME 2>&1)" = "active" ] || return 1
+  [ "$(wget -q -O - "$verurl?name=${0##*/}&i=${USER}%40$HOSTNAME" 2>&1)" = "active" ] || return 1
   old_version="$(get_version $0)"
   [ "$1" = "-q" ] && new_version="$(get_webversion -q)" || new_version="$(get_webversion)"
   [ "$1" = "-q" ] || echo "Version of $selfurl is: $new_version"
@@ -327,114 +328,115 @@ self_update() {
 
 showhelp() {
  cat << eoh
-A script to start a job on the cluster.
-It builds a very simple submit script (see -p options) and
-run it.
-
-$usage
-
-SCRIPT OPTIONS:
--n, --name NAME      Change trunc name of script
-                     Default: $name
-    --batch NAME     Change name of the submit script
-                     Default:  \$(mktemp ${name}$template)
-                     (Argument is NAME+TEMPLATE)
--l, --log NAME       Change name of the output file
-                     Default: log_"batch"
-    --template TEXT  Change template for mktemp
-                     Default: $template
--a, --auto           Use first argument as name
-    --script         Will use the argument as base scripts and concatenate them
-                     (implies --nompi)
--e, --emptytemplate  Same as --template ""
--m, --mail NAME      send mail to NAME
-                     default: '$mail' (use 'auto' for automatic)
--f, --finish NAME    Touches file NAME when succesfully finished
--t, --time           Adds a date command before and after the command
--p, --print          Only print the submit script (implies --nosubmit)
-    --nosubmit       Do submit the script, only create it (useful with --submit)
-    --submit   FILE  Submit the script FILE
--r, --resubmit FILE  Resub the script if exit status was 0 and FILE not exist
--w, --wait           Waits for the job to finish
-                     Exit status from existence of FILE from --finish or --resubmit
-    --sleeptime      Changes the sleeptime for --wait
-                     Default: $sleeptime
-    --shell NAME     Change the shell to use, script will sources ~/.XXXrc
-                     Default: $myshell
-    --source FILE    Source this file before run the progam
-    --scratch        Use scratch on "$scratch_dir/\$USER/"
-    --needed FILES   Give the files needed to be copy to the scratch dir to
-                     run, remember to use quotes ("file1 file2 file3" or "\$(ls *.d)")
-                     (implies --scratch)
-
-QUEUE OPTIONS:
--N                   Number of cpus (also determines the queue together with walltime)
-                     Possible: 1,8
-                     Default: $ncpus
-    --nompi          This is NOT a mpi job, so do NOT add mpirun (or equivalent)
-                     to the command line (for ncpus > 1) automatically
-    --walltime TIME  Change wall clock time (use 1cpu and  00:20:00 for test queue)
-                     Default: $wall_time
-    --runat HOST     Specify the host to run yourself
-    --runatnow HOST  like --runat, but one do it one time, not after the resubmitting
-    --queue  NAME.q  Overwrite the queue to be used with NAME.q
-                     (also in the case of --queueinfo)
-
-
-JOBS OPTIONS:
-    --showjobs        Show my jobs running (on $submit_host)
-    --alljobs         Show all jobs running (on $submit_host)
-    --checkjob JOB_ID Return true if job is still running (useful with -f)
-                      "while ${0##*/} -q --checkjob JOB_ID; do :; done"
-    --pcheck PATTERN  Return true if at least one job matching a pattern is still running
-                      PATTERN is search in the name column (useful with -f)
-                      "while ${0##*/} -q --pcheck NAME; do :; done"
-    --showlog  JOB_ID Show logfile for running job with number JOB_ID
-    --showdir  JOB_ID Show pwd of simulation
-    --taillog  JOB_ID Same as --showlog but tail and follow
-    --killjob  JOB_ID Kill job with number JOB_ID
-    --statjob  JOB_ID Show status of the job with number JOB_ID
-    --pkill PATTERN   Kill all jobs matching a pattern
-    --getjid PATTERN  Retrun the ids of all jobs matching PATTERN
-    --queueinfo [NR]  Show info about some queue [1|2|8] or all queues
-    --header          Show info header
-
-COMMON OPTIONS:
-    --               End of options (if program starts with -)
--q, --quiet          Be quiet
-    --rcfile FILE    Extra setting file with defaults to read
-                     Default: read only $rcfile if exist
-    --showdefaults   Show the default settings before reading $rcfile and the
-                     file given by --rcfile, useful to create own rcfile with:
-                     "${0##*/} --showdefaults > $rcfile"
--v, --version        Prints version
-    --selfupdate     Do a self update from googlecode
--h, --help           Show this help message
-
-Notes for usage of scratch space:
-------------------------
--The usage of the scratch space is complicated, use it with care!
--Only use scratch space if you expect heavy input/output load
--You may add the input files to copy to the scratch dir  with --needed
- or use "--needed '*'", if want to copy all files of the current dir.
--If the binary in not in your PATH, give the full path of binary or
- add itself to --needed itself and use "./"
--Remember, copying input files to the scratch dir and output file back here
- takes time, so substract time needed for that from the wall of the actual simulation!
-
-Examples:
-   ${0##*/} -8p sleep 30
-   ${0##*/} -8p --nompi mpirun -np 8 sleep 30
-   ${0##*/} --name gromacs mdrun -v
-   ${0##*/} -8 --needed topol.tpr mdrun
-   ${0##*/} echo -e 'SOL\\\\nSOL' \| g_rdf -b 100 -n index.ndx
-   ${0##*/} -8 --resubmit confout.gro --nompi mdrun -cpi state.cpt -maxh 36
-   ${0##*/} -8 --source ~/myGromacs/GMXRC --resubmit confout.gro mdrun -append -cpi state.cpt -maxh 36
-            (Note: -cpi is smart, the first time mdrun will start normal!)
-   ${0##*/} -8 --needed '*' --resubmit confout.gro  mdrun -append -cpi state.cpt -maxh 35
-            (Note: --needed '*' needs a separate dir for the simulation!)
-
-Send comments and bugs to: junghans@mpip-mainz.mpg.de
+    A script to start $header.
+    It builds a very simple submit script (see -p options) and
+    run it.
+    
+    $usage
+    
+    SCRIPT OPTIONS:
+    -n, --name NAME      Change trunc name of script
+                         Default: $name
+ADV     --batch NAME     Change name of the submit script
+ADV                      Default:  \$(mktemp ${name}$template)
+ADV                      (Argument is NAME+TEMPLATE)
+ADV -l, --log NAME       Change name of the output file
+ADV                      Default: log_"batch"
+ADV     --template TEXT  Change template for mktemp
+ADV                      Default: $template
+ADV -a, --auto           Use first argument as name
+ADV     --script         Will use the argument as base scripts and concatenate them
+ADV                      (implies --nompi)
+ADV -e, --emptytemplate  Same as --template ""
+ADV -m, --mail NAME      send mail to NAME
+ADV                      default: '$mail' (use 'auto' for automatic)
+ADV -f, --finish NAME    Touches file NAME when succesfully finished
+ADV -t, --time           Adds a date command before and after the command
+    -p, --print          Only print the submit script (implies --nosubmit)
+ADV     --nosubmit       Do submit the script, only create it (useful with --submit)
+ADV     --submit   FILE  Submit the script FILE
+ADV -r, --resubmit FILE  Resub the script if exit status was 0 and FILE not exist
+ADV -w, --wait           Waits for the job to finish
+ADV                      Exit status from existence of FILE from --finish or --resubmit
+ADV     --sleeptime      Changes the sleeptime for --wait
+ADV                      Default: $sleeptime
+ADV     --shell NAME     Change the shell to use, script will sources ~/.XXXrc
+ADV                      Default: $myshell
+ADV     --source FILE    Source this file before run the progam
+ADV     --scratch        Use scratch on "$scratch_dir/\$USER/"
+ADV     --needed FILES   Give the files needed to be copy to the scratch dir to
+ADV                      run, remember to use quotes ("file1 file2 file3" or "\$(ls *.d)")
+ADV                      (implies --scratch)
+    
+    QUEUE OPTIONS:
+    -N                   Number of cpus (also determines the queue together with walltime)
+                         Possible: 1,8
+                         Default: $ncpus
+ADV     --nompi          This is NOT a mpi job, so do NOT add mpirun (or equivalent)
+ADV                      to the command line (for ncpus > 1) automatically
+        --walltime TIME  Change wall clock time (use 1cpu and  00:20:00 for test queue)
+                         Default: $wall_time
+ADV     --runat HOST     Specify the host to run yourself
+ADV     --runatnow HOST  like --runat, but one do it one time, not after the resubmitting
+ADV     --queue  NAME.q  Overwrite the queue to be used with NAME.q
+ADV                      (also in the case of --queueinfo)
+    
+    
+    JOBS OPTIONS:
+        --showjobs        Show my jobs running (on $submit_host)
+        --alljobs         Show all jobs running (on $submit_host)
+ADV     --checkjob JOB_ID Return true if job is still running (useful with -f)
+ADV                       "while ${0##*/} -q --checkjob JOB_ID; do :; done"
+ADV     --pcheck PATTERN  Return true if at least one job matching a pattern is still running
+ADV                       PATTERN is search in the name column (useful with -f)
+ADV                       "while ${0##*/} -q --pcheck NAME; do :; done"
+        --showlog  JOB_ID Show logfile for running job with number JOB_ID
+ADV     --showdir  JOB_ID Show pwd of simulation
+ADV     --taillog  JOB_ID Same as --showlog but tail and follow
+        --killjob  JOB_ID Kill job with number JOB_ID
+ADV     --statjob  JOB_ID Show status of the job with number JOB_ID
+ADV     --pkill PATTERN   Kill all jobs matching a pattern
+ADV     --getjid PATTERN  Retrun the ids of all jobs matching PATTERN
+        --queueinfo [NR]  Show info about some queue [1|2|8] or all queues
+ADV     --header          Show info header
+    
+    COMMON OPTIONS:
+ADV     --               End of options (if program starts with -)
+ADV -q, --quiet          Be quiet
+        --rcfile FILE    Extra setting file with defaults to read
+                         Default: read only $rcfile if exist
+ADV     --showdefaults   Show the default settings before reading $rcfile and the
+ADV                      file given by --rcfile, useful to create own rcfile with:
+ADV                      "${0##*/} --showdefaults > $rcfile"
+ADV -v, --version        Prints version
+        --selfupdate     Do a self update from googlecode
+    -h, --help           Show short help message
+        --longhelp       Show long help message
+    
+ADV Notes for usage of scratch space:
+ADV ------------------------
+ADV -The usage of the scratch space is complicated, use it with care!
+ADV -Only use scratch space if you expect heavy input/output load
+ADV -You may add the input files to copy to the scratch dir  with --needed
+ADV  or use "--needed '*'", if want to copy all files of the current dir.
+ADV -If the binary in not in your PATH, give the full path of binary or
+ADV  add itself to --needed itself and use "./"
+ADV -Remember, copying input files to the scratch dir and output file back here
+ADV  takes time, so substract time needed for that from the wall of the actual simulation!
+    
+    Examples:
+       ${0##*/} -8p sleep 30
+       ${0##*/} -8p --nompi mpirun -np 8 sleep 30
+       ${0##*/} --name gromacs mdrun -v
+       ${0##*/} -8 --needed topol.tpr mdrun
+       ${0##*/} echo -e 'SOL\\\\nSOL' \| g_rdf -b 100 -n index.ndx
+       ${0##*/} -8 --resubmit confout.gro --nompi mdrun -cpi state.cpt -maxh 36
+       ${0##*/} -8 --source ~/myGromacs/GMXRC --resubmit confout.gro mdrun -append -cpi state.cpt -maxh 36
+                (Note: -cpi is smart, the first time mdrun will start normal!)
+       ${0##*/} -8 --needed '*' --resubmit confout.gro  mdrun -append -cpi state.cpt -maxh 35
+                (Note: --needed '*' needs a separate dir for the simulation!)
+    
+    Send comments and bugs to: junghans@mpip-mainz.mpg.de
 eoh
 }
 
@@ -638,7 +640,10 @@ while [ "${1#-}" != "$1" ]; do
    echo "${0##*/}: $(sed -ne 's/^#version.* -- \(.*\)$/\1/p' $0 | sed -n '$p')"
    exit 0;;
   -h | --help)
-   showhelp
+   showhelp | sed -e '/^ADV /d' -e 's/^    //'
+   exit 0;;
+  --longhelp)
+   showhelp | sed -e 's/^ADV/   /' -e 's/^    //'
    exit 0;;
   --)
    shift
