@@ -668,17 +668,21 @@ if [ -z "$batchname" ]; then
   if [ -z "${template//[^X]}" ]; then
     batchname="${name}"
   elif [ -n "$(type -p mktemp)" ]; then
-    batchname=$(mktemp ${name}${template}) || die "mktemp could not generate file"
+    batchname=$(mktemp -u ${name}${template}) || die "mktemp could not generate file"
   else
     echo No mktemp found >&2
     l=${template//[^X]}
     l=${#l}
     t2=${template}
-    for ((i=0;i<$l;i++)); do
-      t2=${t2/X/${RANDOM:0:1}}
+    batchname=${0}
+    while [ -f ${batchname} ]; do
+      for ((i=0;i<$l;i++)); do
+        t2=${t2/X/${RANDOM:0:1}}
+      done
+      batchname=${name}${t2}
     done
-    batchname=${name}${t2}
   fi
+  touch ${batchname}
 fi
 
 if [ -z "$logfile" ]; then
