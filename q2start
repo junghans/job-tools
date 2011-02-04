@@ -10,6 +10,7 @@
 #version 0.2.2 ,19.01.11 -- fixed a bug when args were quoted
 #version 0.2.3 ,20.01.11 -- bug in version 0.2.2 due to wrong logic
 #version 0.2.4 ,28.01.11 -- nomail is now default
+#version 0.2.5 ,04.02.11 -- updated help message
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you really need to change
@@ -407,7 +408,7 @@ COMMON OPTIONS:
                      file given by --rcfile, useful to create own rcfile with:
                      "${0##*/} --showdefaults > $rcfile"
 -v, --version        Prints version
-    --selfupdate     Do a self update from googlecode (EXPERIMENTAL)
+    --selfupdate     Do a self update from googlecode
 -h, --help           Show this help message
 
 Notes for usage of scratch space:
@@ -426,7 +427,7 @@ Examples:
    ${0##*/} -8p --nompi mpirun -np 8 sleep 30
    ${0##*/} --name gromacs mdrun -v
    ${0##*/} -8 --needed topol.tpr mdrun
-   ${0##*/} "echo -e \"SOL\nSOL\" | g_rdf -b 100 -n index.ndx"
+   ${0##*/} echo -e 'SOL\\\\nSOL' \| g_rdf -b 100 -n index.ndx
    ${0##*/} -8 --resubmit confout.gro --nompi mdrun -cpi state.cpt -maxh 36
    ${0##*/} -8 --source ~/myGromacs/GMXRC --resubmit confout.gro mdrun -append -cpi state.cpt -maxh 36
             (Note: -cpi is smart, the first time mdrun will start normal!)

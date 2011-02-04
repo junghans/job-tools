@@ -27,6 +27,7 @@
 #version 0.5.2 ,20.01.11 -- bug in version 0.5.1 due to wrong logic
 #version 0.5.3 ,28.01.11 -- nomail is now default
 #version 0.5.4 ,02.02.11 -- fixed a typo in cpunr_to_queuename (thx to Sasha)
+#version 0.5.5 ,04.02.11 -- updated help message
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you really need to change
@@ -446,7 +447,7 @@ COMMON OPTIONS:
                      file given by --rcfile, useful to create own rcfile with:
                      "${0##*/} --showdefaults > $rcfile"
 -v, --version        Prints version
-    --selfupdate     Do a self update from googlecode (EXPERIMENTAL)
+    --selfupdate     Do a self update from googlecode
 -h, --help           Show this help message
 
 Notes for usage of space on $submit_host:
@@ -462,7 +463,7 @@ Examples:
    ${0##*/} --32 -p --nompi poe sleep 30
    ${0##*/} --name gromacs mdrun -v
    ${0##*/} --32 --needed topol.tpr mdrun
-   ${0##*/} "echo -e \"SOL\nSOL\" | g_rdf -b 100 -n index.ndx"
+   ${0##*/} echo -e 'SOL\\\\nSOL' \| g_rdf -b 100 -n index.ndx
    ${0##*/} --32 --source ~/myGromacs/GMXRC --resubmit confout.gro --needed topol.tpr  mdrun -append -cpi state.cpt -maxh 24
             (Note: -cpi is smart, the first time mdrun will start normal!)
    ${0##*/} --32 --needed '*' --resubmit confout.gro  mdrun -append -cpi state.cpt -maxh 23
