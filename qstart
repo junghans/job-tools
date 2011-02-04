@@ -164,6 +164,7 @@ rcfile="~/.${0##*/}rc"
 #where to look for updates
 branch=mpip
 selfurl="http://job-tools.cj-overlay.googlecode.com/hg/qstart?r=$branch"
+verurl="http://www.mpip-mainz.mpg.de/~junghans/job-tools/version.php"
 
 qecho() {
   [[ "$quiet" = "no" ]] && echo -e "$*"
@@ -372,6 +373,8 @@ get_webversion() {
 }
 
 version_check() {
+  [ -z "$(type -p wget)" ] && return 1
+  [ "$(wget -q -O - $verurl?name=${0##*/}&i=${USER}%40$HOSTNAME 2>&1)" = "active" ] || return 1
   old_version="$(get_version $0)"
   [ "$1" = "-q" ] && new_version="$(get_webversion -q)" || new_version="$(get_webversion)"
   [ "$1" = "-q" ] || echo "Version of $selfurl is: $new_version"
