@@ -29,6 +29,7 @@
 #version 0.5.4 ,02.02.11 -- fixed a typo in cpunr_to_queuename (thx to Sasha)
 #version 0.5.5 ,04.02.11 -- updated help message
 #version 0.5.6 ,04.02.11 -- added longhelp message
+#version 0.5.7 ,09.02.11 -- print an error if ncpus was set twice
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you really need to change
@@ -121,6 +122,8 @@ usage="${0##*/} [OPTIONS] COMMAND [options]"
 set=""
 #was the connection already checked
 checked_connection="no"
+#ncpus set by the user
+ncpus_set=""
 #user given script name
 batchname=""
 #user given log file name
@@ -463,12 +466,13 @@ ADV
     Examples:
        ${0##*/} --32 -p sleep 30
        ${0##*/} --32 -p --nompi poe sleep 30
-       ${0##*/} --name gromacs mdrun -v
+       ${0##*/} --name gromacs mdrun_mpi -v
        ${0##*/} --32 --needed topol.tpr mdrun
        ${0##*/} echo -e 'SOL\\\\nSOL' \| g_rdf -b 100 -n index.ndx
-       ${0##*/} --32 --source ~/myGromacs/GMXRC --resubmit confout.gro --needed topol.tpr  mdrun -append -cpi state.cpt -maxh 24
-                (Note: -cpi is smart, the first time mdrun will start normal!)
-       ${0##*/} --32 --needed '*' --resubmit confout.gro  mdrun -append -cpi state.cpt -maxh 23
+       ${0##*/} --32 --source ~/myGromacs/GMXRC --needed topol.tpr  mdrun_mpi
+       ${0##*/} --64 --smt --resubmit confout.gro --needed topol.tpr  mdrun_mpi -append -cpi state.cpt -maxh 24
+                (Note: -cpi is smart, the first time mdrun_mpi will start normal!)
+       ${0##*/} --32 --needed '*' --resubmit confout.gro  mdrun_mpi-append -cpi state.cpt -maxh 23
                 (Note: --needed '*' needs a separate dir for the simulation!)
     
     Send comments and bugs to: junghans@mpip-mainz.mpg.de
@@ -557,9 +561,11 @@ while [ "${1#-}" != "$1" ]; do
    sed -ne '/^#BEGIN DEFAULTS/,/^#END DEFAULTS/p' $0 | sed -e '1d' -e '$d' -e '/^[^#]/s/^/#/'
    exit 0;;
   -[0-9] | --[0-9]* )
-   ncpus=${1#-}
-   ncpus=${ncpus#-}
-   number_check "$ncpus" "$1"
+   #avoid confusion: -128 would be -1 -2 -8 warn the user
+   [ -n "$ncpus_set" ] && die "Number of cpu was set twice, first '$ncpu_set' and now '${1#-}', normally that is not desired!\nRemember '-128' is not same as '--128', but just shorthand notation for '-1 -2 -8'"
+   ncpus_set=${1#-}
+   ncpus_set=${ncpus_set#-}
+   number_check "$ncpus_set" "$1"
    shift;;
   --mode )
    mode=" smt normal "
@@ -761,6 +767,7 @@ if [ "$batchname" != "/dev/stdout" ]; then
   qecho "logfile: $logfile"
 fi
 
+[ -n "$ncpus_set" ] && ncpus="$ncpus_set"
 queue_name="$(cpunr_to_queuename $ncpus)" || die
 
 if [ $ncpus -lt 32 ]; then
