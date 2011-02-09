@@ -380,7 +380,7 @@ ADV                      run, remember to use quotes ("file1 file2 file3" or "\$
 ADV     --cpback FILE    Copy back files from jobs which was start with BATCH
     
     QUEUE OPTIONS:
-    -N, --NNNN           Number of cpus (also determines the queue together with walltime) 
+        --NNNN           Number of cpus (also determines the queue together with walltime)
                          Possible: 128|256|..|4096
                          Default: $ncpus
         --mode XXX       Change threading mode: SMP, DUAL or VN
@@ -431,19 +431,20 @@ ADV -v, --version        Prints version
 ADV Notes for usage of space on $submit_host:
 ADV ------------------------
 ADV -The usage of the scratch space is complicated, use it with care!
-ADV -You may add the input files to copy to the scratch dir  with --needed
+ADV -You may add the input files to copy to the scratch dir with --needed
 ADV  or use "--needed '*'", if want to copy all files of the current dir.
 ADV -If the binary in not in your PATH, give the full path of binary.
 ADV 
     
     Examples:
-       ${0##*/} --32 -p sleep 30
-       ${0##*/} --32 -p --nompi poe sleep 30
-       ${0##*/} --name gromacs mdrun -v
-       ${0##*/} --32 --needed topol.tpr mdrun
-       ${0##*/} --32 --source ~/myGromacs/GMXRC --resubmit confout.gro --needed topol.tpr  mdrun -append -cpi state.cpt -maxh 24
-                (Note: -cpi is smart, the first time mdrun will start normal!)
-       ${0##*/} --32 --needed '*' --resubmit confout.gro  mdrun -append -cpi state.cpt -maxh 23
+       ${0##*/} --128 -p sleep 30
+       ${0##*/} --128 -p --nompi poe sleep 30
+       ${0##*/} --name gromacs mdrun_mpi -v
+       ${0##*/} --128 --needed topol.tpr mdrun
+       ${0##*/} --128 --source ~/myGromacs/GMXRC --needed topol.tpr  mdrun_mpi
+       ${0##*/} --128 --resubmit confout.gro --needed topol.tpr  mdrun_mpi -append -cpi state.cpt -maxh 24
+                (Note: -cpi is smart, the first time mdrun_mpi will start normal!)
+       ${0##*/} --128 --needed '*' --resubmit confout.gro  mdrun_mpi -append -cpi state.cpt -maxh 23
                 (Note: --needed '*' needs a separate dir for the simulation!)
     
     Send comments and bugs to: junghans@mpip-mainz.mpg.de
@@ -531,9 +532,8 @@ while [ "${1#-}" != "$1" ]; do
   --showdefaults )
    sed -ne '/^#BEGIN DEFAULTS/,/^#END DEFAULTS/p' $0 | sed -e '1d' -e '$d' -e '/^[^#]/s/^/#/'
    exit 0;;
-  -[0-9] | --[0-9]* )
-   ncpus=${1#-}
-   ncpus=${ncpus#-}
+  --[0-9]* )
+   ncpus=${1#--}
    number_check "$ncpus" "$1"
    shift;;
   --mode )
