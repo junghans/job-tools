@@ -404,6 +404,8 @@ showhelp() {
 
     $usage
 
+    (later options overwrite previous ones, short options can be concatenated)
+
     SCRIPT OPTIONS:
     -n, --name NAME      Change trunc name of script
                          Default: $name
