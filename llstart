@@ -924,7 +924,7 @@ else
   [ -z "$finish_file" ] || echo "[ \$result -eq 0 ] && touch '$finish_file'" >> $batchname
 fi
 
-if [ "${HOSTNAME}" != "$real_submit_hostname" ]; then
+if [ "$batchname" != "/dev/stdout" ] && [ "${HOSTNAME}" != "$real_submit_hostname" ]; then
     #we are not on vip
    if [ -z "$filelist" ]; then
      echo "Run a simulation on $submit_host from here with no needed files ?" >&2
