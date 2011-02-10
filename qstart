@@ -60,6 +60,7 @@
 #version 1.1.4 ,28.01.11 -- nomail is now default
 #version 1.1.5 ,04.02.11 -- updated help message
 #version 1.1.6 ,04.02.11 -- added longhelp message
+#version 1.1.7 ,10.02.11 -- back to thop01 as default submit_host
 
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you really need to change
@@ -81,7 +82,7 @@ job_info="$queue_path/qconf"
 submit_opts=""
 #name of the host, where to submit the jobs
 #maybe create an sshalias
-submit_host="thop82"
+submit_host="thop01"
 #the real hostname ($HOSTNAME), when logon submit_host
 real_submit_hostname="$submit_host"
 #submit the script by default: yes/no
