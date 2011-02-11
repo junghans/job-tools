@@ -26,6 +26,11 @@
 #version 0.2.2 ,04.02.11 -- updated help message
 #version 0.2.3 ,04.02.11 -- added longhelp message
 
+##############################################################
+# NEVER EVEN change settings below, but in your ~/.bgstartrc #
+# because --selfupdate will overwrite it !                   #
+##############################################################
+
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you really need to change
 #keep it in bash style, source must work on this file

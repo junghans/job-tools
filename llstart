@@ -47,6 +47,11 @@
 #version 0.5.6 ,04.02.11 -- added longhelp message
 #version 0.5.7 ,09.02.11 -- print an error if ncpus was set twice
 
+##############################################################
+# NEVER EVEN change settings below, but in your ~/.llstartrc #
+# because --selfupdate will overwrite it !                   #
+##############################################################
+
 #BEGIN DEFAULTS
 #defaults options, uncomment and change only the lines you really need to change
 #keep it in bash style, source must work on this file
