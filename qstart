@@ -208,13 +208,7 @@ run_on_host() {
   else
     if [ "$checked_connection" = "no" ]; then
       ssh $submit_host true || die "Heuristic connection check failed.
-Change 'submit_host' variable in your setting file ($rcfile), which is now set to '$submit_host'
-or make an ssh alias by adding the following block to your ~/.ssh/config:
-####BEGIN COPY####
-Host $submit_host
-	User <YOURNAME>
-	Hostname vip.rzg.mpg.de
-####END COPY####
+Change 'submit_host' variable in your setting file ($rcfile), which is now set to '$submit_host'.
 
 To generate a setting file run:
    '${0##*/} --showdefaults > $rcfile'"
