@@ -1,4 +1,20 @@
 #! /bin/bash
+#
+# C.Junghans
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #version 0.1   ,25.08.08 -- initial version from llstart
 #version 0.1.1 ,27.08.10 -- fixed a bug in --submit
@@ -339,11 +355,11 @@ showhelp() {
     A script to start $header.
     It builds a very simple submit script (see -p options) and
     run it.
-    
+
     $usage
 
     (later options overwrite previous ones, short options can be concatenated)
-    
+
     SCRIPT OPTIONS:
     -n, --name NAME      Change trunc name of script
                          Default: $name
@@ -380,14 +396,14 @@ ADV     --source FILE    Source this file before run the progam
 ADV     --needed FILES   Give the files needed to be copy to the scratch dir to
 ADV                      run, remember to use quotes ("file1 file2 file3" or "\$(ls *.d)")
 ADV     --cpback FILE    Copy back files from jobs which was start with BATCH
-    
+
     QUEUE OPTIONS:
         --NNNN           Number of cpus (also determines the queue together with walltime)
                          Possible: 128|256|..|4096
                          Default: $ncpus
         --mode XXX       Change threading mode: SMP, DUAL or VN
                          Default: $mode
-ADV     --netmode XXX    Change network mode: MESH/TORUS/PREFER_TORUS 
+ADV     --netmode XXX    Change network mode: MESH/TORUS/PREFER_TORUS
 ADV                      Default: $netmode
 ADV     --nompi          This is NOT a mpi job, so do NOT add mpirun (or equivalent)
 ADV                      to the command line (for ncpus > 1) automatically
@@ -396,8 +412,8 @@ ADV                      to the command line (for ncpus > 1) automatically
                          Default: $wall_time
 ADV     --queue  NAME    Overwrite the queue to be used with NAME
 ADV                      (also in the case of --queueinfo)
-    
-    
+
+
     JOBS OPTIONS:
         --showjobs        Show my jobs running (on $submit_host)
         --alljobs         Show all jobs running (on $submit_host)
@@ -416,7 +432,7 @@ ADV     --getjid PATTERN  Retrun the ids of all jobs matching PATTERN
         --queueinfo [NR]  Show info about some queue [128|256|..|4096] or all queues
                           (maybe altered by --walltime)
 ADV     --header          Show info header
-    
+
     COMMON OPTIONS:
 ADV     --               End of options (if program starts with -)
 ADV -q, --quiet          Be quiet
@@ -429,15 +445,15 @@ ADV -v, --version        Prints version
         --selfupdate     Do a self update from googlecode
     -h, --help           Show short help message
         --longhelp       Show long help message
-    
+
 ADV Notes for usage of space on $submit_host:
 ADV ------------------------
 ADV -The usage of the scratch space is complicated, use it with care!
 ADV -You may add the input files to copy to the scratch dir with --needed
 ADV  or use "--needed '*'", if want to copy all files of the current dir.
 ADV -If the binary in not in your PATH, give the full path of binary.
-ADV 
-    
+ADV
+
     Examples:
        ${0##*/} --128 -p sleep 30
        ${0##*/} --128 -p --nompi poe sleep 30
@@ -448,7 +464,7 @@ ADV
                 (Note: -cpi is smart, the first time mdrun_mpi will start normal!)
        ${0##*/} --128 --needed '*' --resubmit confout.gro  mdrun_mpi -append -cpi state.cpt -maxh 23
                 (Note: --needed '*' needs a separate dir for the simulation!)
-    
+
     Send comments and bugs to: junghans@mpip-mainz.mpg.de
 eoh
 }

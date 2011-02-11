@@ -1,4 +1,20 @@
 #! /bin/bash
+#
+# C.Junghans
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #version 0.1   ,03.12.10 -- initial version from qstart
 #version 0.1.1 ,06.12.10 -- fixed a bug in --alljobs
@@ -331,11 +347,11 @@ showhelp() {
     A script to start $header.
     It builds a very simple submit script (see -p options) and
     run it.
-    
+
     $usage
 
     (later options overwrite previous ones, short options can be concatenated)
-    
+
     SCRIPT OPTIONS:
     -n, --name NAME      Change trunc name of script
                          Default: $name
@@ -369,7 +385,7 @@ ADV     --scratch        Use scratch on "$scratch_dir/\$USER/"
 ADV     --needed FILES   Give the files needed to be copy to the scratch dir to
 ADV                      run, remember to use quotes ("file1 file2 file3" or "\$(ls *.d)")
 ADV                      (implies --scratch)
-    
+
     QUEUE OPTIONS:
     -N                   Number of cpus (also determines the queue together with walltime)
                          Possible: 1,8
@@ -382,8 +398,8 @@ ADV     --runat HOST     Specify the host to run yourself
 ADV     --runatnow HOST  like --runat, but one do it one time, not after the resubmitting
 ADV     --queue  NAME.q  Overwrite the queue to be used with NAME.q
 ADV                      (also in the case of --queueinfo)
-    
-    
+
+
     JOBS OPTIONS:
         --showjobs        Show my jobs running (on $submit_host)
         --alljobs         Show all jobs running (on $submit_host)
@@ -401,7 +417,7 @@ ADV     --pkill PATTERN   Kill all jobs matching a pattern
 ADV     --getjid PATTERN  Retrun the ids of all jobs matching PATTERN
         --queueinfo [NR]  Show info about some queue [1|2|8] or all queues
 ADV     --header          Show info header
-    
+
     COMMON OPTIONS:
 ADV     --               End of options (if program starts with -)
 ADV -q, --quiet          Be quiet
@@ -414,7 +430,7 @@ ADV -v, --version        Prints version
         --selfupdate     Do a self update from googlecode
     -h, --help           Show short help message
         --longhelp       Show long help message
-    
+
 ADV Notes for usage of scratch space:
 ADV ------------------------
 ADV -The usage of the scratch space is complicated, use it with care!
@@ -425,7 +441,7 @@ ADV -If the binary in not in your PATH, give the full path of binary or
 ADV  add itself to --needed itself and use "./"
 ADV -Remember, copying input files to the scratch dir and output file back here
 ADV  takes time, so substract time needed for that from the wall of the actual simulation!
-    
+
     Examples:
        ${0##*/} -8p sleep 30
        ${0##*/} -8p --nompi mpirun -np 8 sleep 30
@@ -437,7 +453,7 @@ ADV  takes time, so substract time needed for that from the wall of the actual s
                 (Note: -cpi is smart, the first time mdrun will start normal!)
        ${0##*/} -8 --needed '*' --resubmit confout.gro  mdrun -append -cpi state.cpt -maxh 35
                 (Note: --needed '*' needs a separate dir for the simulation!)
-    
+
     Send comments and bugs to: junghans@mpip-mainz.mpg.de
 eoh
 }
