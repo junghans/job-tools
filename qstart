@@ -628,6 +628,9 @@ while [ "${1#-}" != "$1" ]; do
    --submit)
    submit_job "$2"
    exit $? ;;
+   --template )
+   template="$2"
+   shift 2;;
    -e | --emptytemplate )
    template=""
    shift ;;
