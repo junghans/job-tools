@@ -134,6 +134,8 @@ usage="${0##*/} [OPTIONS] COMMAND [options]"
 set=""
 #was the connection already checked
 checked_connection="no"
+#if the job submit directly
+direct_submit="no"
 #user given script name
 batchname=""
 #user given log file name
@@ -153,14 +155,14 @@ qecho() {
 
 die() {
   [ -z "$1" ] || echo -e "$*" >&2
-  [ -n "$batchname" ] && [ -f "$batchname" ] && rm -f "$batchname" && die "batchname $batchname removed"
+  [ "$direct_submit" = "no" ] && [ -n "$batchname" ] && [ -f "$batchname" ] && rm -f "$batchname" && die "batchname $batchname removed"
   exit 1
 }
 
 run_on_host() {
   local message ssh
   [ -z "$1" ] && die "run_on_host: Missing argument"
-  [ "$1" = "BEST" ] && die "Internal error BEST is a virtual hostname, please file a bug"
+  [ "$submit_host" = "BEST" ] && die "Internal error BEST is a virtual hostname, please file a bug"
   if [ "$HOSTNAME" = "$submit_host" ]; then
     ssh="bash -c"
   else
@@ -236,6 +238,9 @@ submit_job() {
   [ -z "$1" ] && die "submit_job: missing argument"
   [ -f "$1" ] || die "Could not find $1"
   path="$(get_path_from_script $1)" || die
+  if [ "$submit_host" = "BEST" ]; then
+    submit_host="$(find_best_host)" || die
+  fi
   message="$(run_on_host "cd $PWD;nohup $1 >/dev/null 2>&1 &")" || die
   qecho "$message"
 }
@@ -303,7 +308,7 @@ get_next_free_jobid() {
 }
 
 find_best_host() {
-  [ -z "$hostlist" ] || die "find_best_host: no hostlist given, use --hostlist option" 
+  [ -n "$hostlist" ] || die "find_best_host: no hostlist given, use --hostlist option" 
   [ -f "$hostlist" ] || die "find_best_host: could not find listhost '$hostlist' (give it with --hostlist)"
   die "not implemented, yet"
 }
@@ -479,6 +484,16 @@ show_path() {
   return $?
 }
 
+get_path_from_script(){
+  local path
+  [ -z "$1" ] && die "get_path_from_script: Missing argument"
+  [ -f "$1" ] || die "get_path_from_script: Could not found"
+  [ -z "$(grep -e "${0##*/}" $1)" ] && die "$1 seems NOT to be a '${0##*/}' script"
+  path="$(awk '/^cd/{print $2;exit 0}' $1)"
+  [ -z "$path" ] && die "get_path_from_script: found not grep path from $1"
+  echo "$path"
+}
+
 ################################################
 ############## Main Program ####################
 ################################################
@@ -545,6 +560,7 @@ while [ "${1#-}" != "$1" ]; do
    submit="no"
    shift ;;
    --submit)
+   direct_submit="yes"
    submit_job "$2"
    exit $? ;;
    --template )
@@ -569,6 +585,7 @@ while [ "${1#-}" != "$1" ]; do
    if [ $nice -lt 0 ] || [ $nice -gt 19 ]; then
       die "argument after --nice should be a number between 0-19"
    fi
+   shift 2;;
   --lines)
    lines="$2"
    number_check "$lines" "--lines"
@@ -594,7 +611,7 @@ while [ "${1#-}" != "$1" ]; do
    shift 2;;
    -b | --best )
    submit_host="BEST"
-   shift 2;;
+   shift;;
   --hostlist )
    hostlist="$2"
    shift 2;;
@@ -742,7 +759,7 @@ exec > $logfile 2>&1
 echo "Renice job $JOB_ID and childs"
 renice $nice -p \$\$
 
-line="$job_id \$HOSTNAME \$\$ $name $PWD $logfile $batchname"
+${set}line="$JOB_ID \$HOSTNAME \$\$ $name $PWD $logfile $batchname"
 echo \$line >> $jobfile
 
 ${sh_source}
@@ -785,7 +802,7 @@ fi
 cat <<EOF >>$batchname
 $cmdline
 ${set}result=\$?
-[ \$result -ne 0 ] && echo "$JOB_ID finished unhappy!"
+[ \$result -ne 0 ] && echo "Job $JOB_ID finished unhappy!"
 EOF
 
 if [ -n "${extra_end_code}" ]; then
@@ -822,9 +839,6 @@ if [ "$submit" = "no" ]; then
   exit 0
 fi
 
-if [ "$submit_host" = "best" ]; then
-  submit_host="$(find_best_host)" || die
-fi
 submit_job $batchname
 
 if [ "$wait" = "yes" ]; then
