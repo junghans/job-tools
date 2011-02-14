@@ -127,6 +127,8 @@ usage="${0##*/} [OPTIONS] COMMAND [options]"
 set=""
 #was the connection already checked
 checked_connection="no"
+#if the job submit directly
+direct_submit="no"
 #user given script name
 batchname=""
 #user given log file name
@@ -144,7 +146,7 @@ qecho() {
 
 die() {
   [ -z "$1" ] || echo -e "$*" >&2
-  [ -n "$batchname" ] && [ -f "$batchname" ] && rm -f "$batchname" && die "batchname $batchname removed"
+  [ "$direct_submit" = "no" ] && [ -n "$batchname" ] && [ -f "$batchname" ] && rm -f "$batchname" && die "batchname $batchname removed"
   exit 1
 }
 
@@ -599,6 +601,7 @@ while [ "${1#-}" != "$1" ]; do
    submit="no"
    shift ;;
    --submit)
+   direct_submit="yes"
    submit_job "$2"
    exit $? ;;
    --template )
