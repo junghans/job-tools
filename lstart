@@ -67,63 +67,32 @@
 #defaults options, uncomment and change only the lines you really need to change
 #keep it in bash style, source must work on this file
 
-############## QUEUE stuff #########
-#path to queue utils need later on
-queue_path="/opt/SGE/bin/lx26-amd64"
-
-#command to submit a job
-job_submit="$queue_path/qsub"
-#command to get status
-job_status="$queue_path/qstat"
-#commnd to cancel/delete a job
-job_kill="$queue_path/qdel"
-#commnd to cancel/delete a job
-job_info="$queue_path/qconf"
-#extra options for submit
-submit_opts=""
+############## QUEUE/SUBMIT stuff #########
 #name of the host, where to submit the jobs
-#maybe create an sshalias
-submit_host="thop01"
-#the real hostname ($HOSTNAME), when logon submit_host
-real_submit_hostname="$submit_host"
+#'BEST' = to the best host
+submit_host="$HOSTNAME"
 #submit the script by default: yes/no
 submit="yes"
 #default number of cpus to use
 ncpus=1
-#default wall clock time
-wall_time="36:00:00"
-#on which node to run by default, empty = no default
-hostname=""
-#overwrite the queue to be used this, empty = normal queue
-specialq=""
-#no old node, will only use nodes >=thop63
-no_old_nodes="no"
 
 ########### MPI stuff ###############
 #should mpirun (or equivalent) be added: yes/no
-mpi_job="yes"
+mpi_job="no"
 #the command to add for mpi jobs
-mpirun_cmd="/opt/lam/bin/mpirun"
-#lamboot command
-lamboot_cmd="/opt/lam/bin/lamboot"
+mpirun_cmd="mpirun"
 
 ############# Script option ########
 #default trunc name of the submit script
-name="q"
+name="l"
 #template to add to the script name
 template="_XXXXX"
 #automatically naming of the script: yes/no
 auto="no"
 #add timing commands: yes/no
 time="no"
-#use scratch space by default: yes/no
-scratch="no"
-#base dir to scratch space
-scratch_dir="/usr/scratch"
 #file to create if jobs is finished
 finish_file=""
-#rebsumit the job until this file exists
-resubmit_file=""
 #file to source before running the command
 extra_source=""
 #default option if none are given on the command line
@@ -133,6 +102,10 @@ default_opts=""
 extra_begin_code=""
 #extra code to put in script after running the job, but before copy back
 extra_end_code=""
+#default nice level of the script
+nice="19"
+#number of lines of logfile to send by email
+lines='100'
 
 ########### other options #####
 #be quiet or not: yes/no
@@ -147,7 +120,7 @@ sleeptime=900
 #empty/none = no email, auto = leave it to queue where to send the mail
 mail="none"
 #header to show with --showjobs option
-header="JOBS ON L.C.A.R.S. (thopXX)"
+header="LOCAL JOBS"
 #shell to be used by default, none=bash
 myshell="${SHELL##*/}"
 #END DEFAULTS
@@ -165,9 +138,11 @@ batchname=""
 logfile=""
 #rc to read
 rcfile="~/.${0##*/}rc"
+#local of file to member running jobs
+jobfile="$HOME/.runingjobs"
 #where to look for updates
 branch=mpip
-selfurl="http://job-tools.cj-overlay.googlecode.com/hg/qstart?r=$branch"
+selfurl="http://job-tools.cj-overlay.googlecode.com/hg/lstart?r=$branch"
 verurl="http://www.mpip-mainz.mpg.de/~junghans/job-tools/version.php"
 
 qecho() {
@@ -183,7 +158,7 @@ die() {
 run_on_host() {
   local message ssh
   [ -z "$1" ] && die "run_on_host: Missing argument"
-  if [ "$HOSTNAME" = "$real_submit_hostname" ]; then
+  if [ "$HOSTNAME" = "$submit_host" ]; then
     ssh="bash -c"
   else
     if [ "$checked_connection" = "no" ]; then
@@ -205,7 +180,6 @@ check_job() {
   [ -z "$1" ] && die "check_job: Missing argument"
   number_check "$1" "--checkjob"
   submit_host=$(show_column $1 2) || die
-  real_submit_hostname="$submit_host"
   pid=$(show_column $1 3) || die
   message=$(run_on_host "ps -p $pid || true") || die
   if [ -z "${message/*$pid*}" ]; then
@@ -215,6 +189,17 @@ check_job() {
     qecho "Job $1: pid $pid on $runhost NOT found"
     return 1
   fi
+}
+
+check_jobs(){
+  local i
+  check_jobfile
+  failed="no"
+  for i in $(awk '{print $1}' $jobfile); do
+    check_job $i || failed="yes"
+  done
+  [ "$failed" = "yes" ] && return 1
+  return 0
 }
 
 pcheck_job() {
@@ -238,7 +223,6 @@ kill_job() {
   [ -z "$1" ] && die "kill_job: Missing argument"
   number_check "$1" "--killjob"
   submit_host=$(show_column $1 2) || die
-  real_submit_hostname="$submit_host"
   pid=$(show_column $1 3) || die
   run_on_host "ps --ppid $pid -o pid= | xargs kill" ||
     die "Could kill childs of pid $pid\nYou may want to run '${0##*/} --rmjob $1' to remove it from the joblist"
@@ -271,6 +255,46 @@ pkill_job() {
   done
   [ "$failed" = "yes" ] || return 1
   return 0
+}
+
+job_exist() {
+  [ -z "$1" ] && die "job_exist: Missing argument"
+  check_jobfile
+  [ -z "$(awk -v id="$1" '($1==id){print $0}' $jobfile)" ] && die "Job $1 not found !"
+  return 0
+}
+
+show_column() {
+  local value
+  [ -z "$2" ] && die "show_column: Missing argument"
+  job_exist $1
+  value="$(awk -v id="$1" -v co="$2" '($1==id){print $co}' $jobfile)"
+  [[ -z "$value" ]] && die "show_column: Could not get value nr $2 for job $1"
+  echo "$value"
+  return $?
+}
+
+check_jobfile() {
+  [ -r "$jobfile" ] || die "Jobfile '$jobfile' not readable or not found!"
+  return 0
+}
+
+rm_job() {
+  [ -z "$1" ] && die "jm_job: Missing argument"
+  number_check "$1" "--rmjob"
+  sed -i "/^$1 /d" $jobfile || die "rm_job: sed failed"
+  qecho Job $1 removed from jobfile
+}
+
+get_next_free_jobid() {
+  die "to implement"
+}
+
+show_jobs() {
+  check_jobfile
+  [[ -n "$(sed '/^$/d' $jobfile)" ]] || exit 0
+  echo JOB_ID HOSTNAME pid name PWD logfile batchfile
+  sed '/^$/d' $jobfile
 }
 
 number_check(){
@@ -356,6 +380,10 @@ ADV -w, --wait           Waits for the job to finish
 ADV                      Exit status from existence of FILE from --finish or --resubmit
 ADV     --sleeptime      Changes the sleeptime for --wait
 ADV                      Default: $sleeptime
+ADV    --nice     NUMBER Change nice factor
+ADV                      Default: '$nice'
+ADV     --lines          change number of last lines of the logfile in the mail
+ADV                      Default: '$lines'
 ADV     --shell NAME     Change the shell to use, script will sources ~/.XXXrc
 ADV                      Default: $myshell
 ADV     --source FILE    Source this file before run the progam
@@ -367,6 +395,7 @@ ADV     --source FILE    Source this file before run the progam
 ADV     --nompi          This is NOT a mpi job, so do NOT add mpirun (or equivalent)
 ADV                      to the command line (for ncpus > 1) automatically
 ADV     --runat HOST     Specify the host to run yourself
+ADV -b, --best           Run at the maschine with the lowest load
 
 
     JOBS OPTIONS:
@@ -431,7 +460,6 @@ show_path() {
   return $?
 }
 
-CJ
 ################################################
 ############## Main Program ####################
 ################################################
@@ -500,22 +528,15 @@ while [ "${1#-}" != "$1" ]; do
    --submit)
    submit_job "$2"
    exit $? ;;
+   --template )
+   template="$2"
+   shift 2;;
    -e | --emptytemplate )
    template=""
    shift ;;
-   --scratch )
-   scratch="yes"
-   shift ;;
-   --needed )
-   filelist=$2
-   scratch="yes"
-   shift 2;;
    -t | --time )
    time="yes"
    shift ;;
-   -r | --resub | --resubmit)
-   resubmit_file="$2"
-   shift 2;;
    -w | --wait)
    wait="yes"
    shift 1;;
@@ -523,9 +544,20 @@ while [ "${1#-}" != "$1" ]; do
    number_check "$2" "--sleeptime"
    sleeptime="$2"
    shift 2;;
+  --nice)
+   nice="$2";
+   number_check "$nice" "--priority"
+   if [ $nice -lt 0 ] || [ $nice -gt 19 ]; then
+      die "argument after --nice should be a number between 0-19"
+   fi
+  --lines)
+   lines="$2"
+   number_check "$lines" "--lines"
+   [ $lines -lt 1 ] && die "argument after --lines should be a number greater 0"
+   shift 2 ;;
   --header)
    echo $header
-   exit 0;;
+   exit ;;
    -m | --mail)
    mail="$2"
    shift 2 ;;
@@ -538,27 +570,14 @@ while [ "${1#-}" != "$1" ]; do
    --nompirun | --nompi)
    mpi_job="no"
    shift ;;
-   --walltime )
-   wall_time="$2"
-   [ -z "${wall_time/[0-9][0-9]:[0-9][0-9]:[0-9][0-9]}" ] || die "Wall clock time should have the format HH:MM:SS"
-   shift 2;;
    --runat )
-   hostname="$2"
+   submit_host="$2"
    shift 2;;
-   --runatnow )
-   submit_opts="$submit_opts -l hostame=$2"
-   shift 2;;
-   --nooldnodes )
-   no_old_nodes="yes"
-   shift ;;
-   --queue )
-   specialq="$2"
+   -b | --best )
+   submit_host="BEST"
    shift 2;;
    --showjobs )
-   run_on_host "$job_status -u $USER"
-   exit $?;;
-   --alljobs )
-   run_on_host "$job_status"
+   show_jobs
    exit $?;;
    --killjob )
    kill_job $2
@@ -575,11 +594,11 @@ while [ "${1#-}" != "$1" ]; do
    --checkjob )
    check_job $2
    exit $?;;
+  --checkjobs)
+   check_jobs
+   exit $?;;
    --pcheck )
    pcheck_job $2
-   exit $?;;
-   --queueinfo )
-   queue_info $2
    exit $?;;
    --showdir )
    show_path "$2"
@@ -589,6 +608,9 @@ while [ "${1#-}" != "$1" ]; do
    exit $?;;
    --taillog )
    show_logs "$2" "tailf"
+   exit $?;;
+  --rmjob)
+   rm_job "$2"
    exit $?;;
   -v | --version)
    echo "${0##*/}, version $(get_version $0) ($branch branch) by C. Junghans"
@@ -675,76 +697,41 @@ else
   die "Unsupported shell"
 fi
 
+if [ "$myshell" = "bash" ]; then
+  [ -f ~/.bashrc ] && sh_source="source ~/.bashrc"
+elif [ "$myshell" = "zsh" ]; then
+  [ -f ~/.zshrc ] && sh_source="source ~/.zshrc"
+elif [ "$myshell" = "tcsh" ]; then
+  if [ -f ~/.tcshrc ]; then
+    sh_source="source ~/.tcshrc"
+  elif [ -f ~/.cshrc ]; then
+    sh_source="source ~/.cshrc"
+  fi
+fi
+
 queue_name="$(cpunr_to_queuename $ncpus)" || die
 
+JOB_ID=$(unique_number)
 cat <<EOF >> $batchname
 #This script is generated by $USER@$HOSTNAME
 #on $(date)
 #by the command "$cmdline"
 #using $($0 --version)
 
-#sge options
-#$ -cwd
-#$ -j y
-#$ -o $logfile
-#$ -l h_rt=${wall_time}
-#$ -q ${queue_name}
-EOF
+exec > $logfile 2>&1
+echo "Renice job $JOB_ID and childs"
+renice $nice -p \$\$
 
-[ -n "$(extra_queue_header $ncpus)" ] && extra_queue_header $ncpus >> $batchname
-[ -n "$hostname" ] && echo "#$ -l hostname=${hostname}" >> $batchname
-
-#To mail or not to mail
-if [ -z "$mail" ] || [ "$mail" = "none" ]; then
-  echo "#$ -m n" >> $batchname
-else
-  echo "#$ -m e" >> $batchname
-  [ "$mail" = "auto" ] || echo "#$ -M $mail" >> $batchname
-fi
-
-if [ "$myshell" = "bash" ]; then
-  echo "#$ -S /bin/bash" >> $batchname
-  [ -f ~/.bashrc ] && sh_source="source ~/.bashrc"
-elif [ "$myshell" = "zsh" ]; then
-  echo "#$ -S /usr/bin/zsh" >> $batchname
-  [ -f ~/.zshrc ] && sh_source="source ~/.zshrc"
-elif [ "$myshell" = "tcsh" ]; then
-  echo "#$ -S /bin/tcsh" >> $batchname
-  if [ -f ~/.tcshrc ]; then
-    sh_source="source ~/.tcshrc"
-  elif [ -f ~/.cshrc ]; then
-    sh_source="source ~/.cshrc"
-  fi
-elif [ "$myshell" = "none" ]; then
-  echo "#$ -S /bin/bash" >> $batchname
-fi
-
-cat <<EOF >>$batchname
+line="$job_id $runhost \$\$ $name $PWD $logfile $batchname"
+echo \$line >> $jobfile
 
 ${sh_source}
 
 cd $PWD
-echo Hi, I am job \$JOB_ID on \$HOSTNAME in \$PWD
-
+echo Hi, I am job $JOB_ID on \$HOSTNAME in \$PWD
 EOF
+
 [ -n "$extra_source" ] && echo "source $extra_source" >> $batchname
-if [ "$scratch" = "yes" ]; then
-  [[ "$time" = "yes" ]] && echo date >> $batchname
-  cat <<EOF >>$batchname
-#Copy the needed files
-${set}olddir=\$PWD
-${set}newdir=$scratch_dir/\$USER/\$JOB_ID
-mkdir -p \$newdir || exit 1
-EOF
-[ -n "$filelist" ] && cat <<EOF >>$batchname
-echo Copy needed files:
-echo $filelist
-cp -r $filelist \$newdir
-echo finished copying files
-EOF
-echo 'cd $newdir' >> $batchname
-fi
-
 if [ -n "${extra_begin_code}" ]; then
   cat <<EOF >>$batchname
 #BEGIN of extra begin code
@@ -778,7 +765,7 @@ fi
 cat <<EOF >>$batchname
 $cmdline
 ${set}result=\$?
-[ \$result -ne 0 ] && echo "\$JOB_ID finished unhappy!"
+[ \$result -ne 0 ] && echo "$JOB_ID finished unhappy!"
 EOF
 
 if [ -n "${extra_end_code}" ]; then
@@ -789,33 +776,25 @@ ${extra_end_code}
 EOF
 fi
 
-if [ "$scratch" = "yes" ]; then
-  [[ "$time" = "yes" ]] && echo date >> $batchname
-  cat <<EOF >>$batchname
-
-#Copy files back
-echo Copy back files:
-echo *
-cp -ru * \$olddir
-echo finished copying files
-cd \$olddir
-echo Removing scratch dir
-[ \$result -eq 0 ] && rm -fr \$newdir
-EOF
-fi
-
+echo "#remove job from jobfile" >> $batchname
+echo "sed -i '/^$JOB_ID /d' $jobfile" >> $batchname
 [[ "$time" = "yes" ]] && echo date >> $batchname
 
-if [ -n "$resubmit_file" ]; then
-  [ -f "$resubmit_file" ] && die "Resub is already there, unlogical !"
-  if [ "$batchname" = "/dev/stdout" ]; then
-    echo Error: Resub and print options make no sense together >&2
-    echo Error: Filename after $job_submit in next line will be wrong !!! >&2
-  fi
-  echo "[ \$result -eq 0 ] && [ ! -f '$resubmit_file' ] && $job_submit $PWD/$batchname" >> $batchname
-  [ -z "$finish_file" ] || echo "[ \$result -eq 0 ] && [ -f $resubmit_file ] && touch $finish_file" >> $batchname
+[ -z "$finish_file" ] || echo "[ \$result -eq 0 ] && touch '$finish_file'" >> $batchname
+
+#To mail or not to mail
+if [ -z "$mail" ] || [ "$mail" = "none" ]; then
+  :
 else
-  [ -z "$finish_file" ] || echo "[ \$result -eq 0 ] && touch '$finish_file'" >> $batchname
+[ "$mail" = "auto" ] && mail="$USER@$HOSTNAME"
+   cat >> $batchname << EOF
+#mailstuff
+if [ \$result -eq 0 ]; then
+  tail -$lines $logfile | mail -s '$0##*/}: $name finished ($logfile)' $mail
+else
+  tail -$lines $logfile | mail -s '$0##*/}: $name aborted ($logfile)' $mail
+fi
+EOF
 fi
 
 if [ "$submit" = "no" ]; then
