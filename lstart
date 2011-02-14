@@ -150,11 +150,11 @@ selfurl="http://job-tools.cj-overlay.googlecode.com/hg/lstart?r=$branch"
 verurl="http://www.mpip-mainz.mpg.de/~junghans/job-tools/version.php"
 
 qecho() {
-  [[ "$quiet" = "no" ]] && echo -e "$*"
+  [[ "$quiet" = "no" ]] && echo -e "$@"
 }
 
 die() {
-  [ -z "$1" ] || echo -e "$*" >&2
+  [ -z "$1" ] || echo -e "$@" >&2
   [ "$direct_submit" = "no" ] && [ -n "$batchname" ] && [ -f "$batchname" ] && rm -f "$batchname" && die "batchname $batchname removed"
   exit 1
 }
@@ -230,19 +230,19 @@ kill_job() {
   submit_host=$(show_column $1 2) || die
   pid=$(show_column $1 3) || die
   run_on_host "ps --ppid $pid -o pid= | xargs kill" ||
-    die "Could kill childs of pid $pid\nYou may want to run '${0##*/} --rmjob $1' to remove it from the joblist"
+    die "Could kill childs of pid $pid\nYou may want to run '${0##*/} --rmjob $1' to remove it from the jobfile"
 }
 
 submit_job() {
-  local message path
+  local message path line JOB_ID
   [ -z "$1" ] && die "submit_job: missing argument"
   [ -f "$1" ] || die "Could not find $1"
   path="$(get_path_from_script $1)" || die
-  if [ "$submit_host" = "BEST" ]; then
-    submit_host="$(find_best_host)" || die
-  fi
+  [ "$submit_host" = "BEST" ] && find_best_host
+  JOB_ID="$(get_jobid_from_script $1)" || die
+  echo "$JOB_ID $submit_host XXX $name $PWD $logfile $batchname (not started yet)" >> $jobfile
   message="$(run_on_host "cd $PWD;nohup $1 >/dev/null 2>&1 &")" || die
-  qecho "$message"
+  qecho "Submitted to $submit_host"
 }
 
 print_jobids() {
@@ -308,9 +308,30 @@ get_next_free_jobid() {
 }
 
 find_best_host() {
+  local host uptime procs xhost xload
   [ -n "$hostlist" ] || die "find_best_host: no hostlist given, use --hostlist option" 
   [ -f "$hostlist" ] || die "find_best_host: could not find listhost '$hostlist' (give it with --hostlist)"
-  die "not implemented, yet"
+  xload=100
+  xhost=BEST
+  for host in $(<hostlist); do
+    qecho -n "Checking $host..."
+    uptime=$(ssh -o ConnectTimeout=15 $host uptime 2>/dev/null) || uptime=XXX
+    [ "$uptime" = "XXX" ] && echo " failed (ssh)" && continue
+    procs=$(ssh -o ConnectTimeout=15 $host "grep -c processor /proc/cpuinfo" 2>/dev/null) || procs=0
+    [ "$procs" -eq 0 ] && echo " failed (ssh)" && continue
+    uptime="$(echo "$uptime" | sed -n 's/^.*:\([^:,]*\),\([^,]*\),\([^,]*\)*$/\1/p')"
+    [ -z "$uptime" ] && qecho " failed (load calc)" && continue
+    uptime="$(awk -v c="$procs" -v l="$uptime" 'BEGIN{print c-l;}')"
+    [ -z "$uptime" ] && qecho " failed (load cmp)" && continue
+    if [ "$(awk -v l="$uptime" -v l2="$load" 'BEGIN{print (l>l2)?"yes":"no";}')" = "yes" ]; then
+      xload="$uptime"
+      xhost="$host"
+    fi
+    qecho "success (free $uptime)"
+  done
+  [ "$xhost" = "BEST" ] && die "find_best_host: no useable host found"
+  submit_host="$xhost"
+  #qecho "Best host is $submit_host"
 }
 
 show_jobs() {
@@ -322,7 +343,7 @@ show_jobs() {
 
 number_check(){
   local number option
-  [ -z "$1" ] && die "number_check: Missing argument"
+  [ -z "$2" ] && die "number_check: Missing argument"
   number="$1"
   option="$2"
   [ -z "$number" ] && die "Missing number in $option"
@@ -487,11 +508,21 @@ show_path() {
 get_path_from_script(){
   local path
   [ -z "$1" ] && die "get_path_from_script: Missing argument"
-  [ -f "$1" ] || die "get_path_from_script: Could not found"
+  [ -f "$1" ] || die "get_path_from_script: Could not found '$1'"
   [ -z "$(grep -e "${0##*/}" $1)" ] && die "$1 seems NOT to be a '${0##*/}' script"
-  path="$(awk '/^cd/{print $2;exit 0}' $1)"
+  path="$(awk '/^cd/{print $2;exit 0}' $1)" || die "get_path_from_script: awk failed"
   [ -z "$path" ] && die "get_path_from_script: found not grep path from $1"
   echo "$path"
+}
+
+get_jobid_from_script(){
+  local id
+  [ -z "$1" ] && die "get_jobid_from_script: Missing argument"
+  [ -f "$1" ] || die "get_jobid_from_script: Could not found script '$1'"
+  [ -z "$(grep -e "${0##*/}" $1)" ] && die "$1 seems NOT to be a '${0##*/}' script"
+  id="$(sed -n 's/^echo "Renice job \(.*\) and childs"/\1/p' $1)" || die "get_jobid_from_script: sed failed"
+  number_check "$id" "get_jobid_from_script"
+  echo "$id"
 }
 
 ################################################
@@ -760,6 +791,7 @@ echo "Renice job $JOB_ID and childs"
 renice $nice -p \$\$
 
 ${set}line="$JOB_ID \$HOSTNAME \$\$ $name $PWD $logfile $batchname"
+sed -i '/^$JOB_ID /d' $jobfile
 echo \$line >> $jobfile
 
 ${sh_source}
