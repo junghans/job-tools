@@ -1,6 +1,6 @@
 #! /bin/bash
 #
-# C.Junghans
+# C.Junghans & K. Koschke
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -29,6 +29,7 @@
 #version 0.2.5 ,04.02.11 -- updated help message
 #version 0.2.6 ,04.02.11 -- added longhelp message
 #version 0.2.7 ,17.02.11 -- fixed a bug when sourcing rcfile
+#version 0.3.0 ,17.02.11 -- added --compenv
 
 ##############################################################
 # NEVER EVEN change settings below, but in your ~/.q2startrc #
@@ -72,8 +73,10 @@ specialq=""
 ########### MPI stuff ###############
 #should mpirun (or equivalent) be added: yes/no
 mpi_job="yes"
-#the command to add for mpi jobs
-mpirun_cmd="/usr/lib64/mpi/gcc/openmpi/bin/mpirun"
+#the command to add for mpi jobs, empty means from set_compenv
+mpirun_cmd=""
+#compiler environment to be used by default
+compenv="gnu"
 
 ############# Script option ########
 #default trunc name of the submit script
@@ -139,6 +142,8 @@ rcfile="~/.${0##*/}rc"
 branch=mpip
 selfurl="http://job-tools.cj-overlay.googlecode.com/hg/q2start?r=$branch"
 verurl="http://www.mpip-mainz.mpg.de/~junghans/job-tools/version.php"
+#compiler environment possible
+compenvs=" gnu intel  pgi "
 
 #workaround until SGE is working everywhere
 export SGE_CELL="THINCC1"
@@ -280,6 +285,59 @@ cpunr_to_queuename() {
   fi
 }
 
+set_compenv(){
+  [ -z "$1" ] && die "set_compenv: missing option"
+  #do not overwrite user settings
+  [ -n "$mpirun_cmd" ] && return 0
+  case $1 in
+    gnu)
+      mpirun_cmd="/sw/linux/mpi/gcc/openmpi/bin/mpirun"
+    ;;
+    intel)
+      mpirun_cmd="/sw/linux/mpi/intel/openmpi/bin/mpirun"
+    ;;
+    pgi)
+      mpirun_cmd="/sw/linux/mpi/pgi/openmpi/bin/mpirun"
+    ;;
+    *)
+      die "this should never appear - something went wrong in set_compenv"
+    ;;
+  esac
+}
+
+show_compenv(){
+  [ -z "$1" ] && die "show_compenv: missing option"
+  case $1 in
+    gnu)
+      echo 'export LD_LIBRARY_PATH=/sw/linux/mpi/gcc/openmpi/lib:$LD_LIBRARY_PATH;'
+      echo 'export PATH=/sw/linux/mpi/gcc/openmpi/bin:$PATH;'
+      echo 'export CC=gcc;'
+      echo 'export F77=gfortran;'
+      echo 'export CXX=g++;'
+    ;;
+    intel)
+      #order is important: source intel vars first before overriding openmpi bin by
+      #exporting the intel/openmpi path
+      echo 'source /sw/linux/intel/composerxe-2011.0.084/bin/iccvars.sh intel64;'
+      echo 'export PATH=/sw/linux/mpi/intel/openmpi/bin/:$PATH;'
+      echo 'export LD_LIBRARY_PATH=/sw/linux/mpi/intel/openmpi/lib/:$LD_LIBRARY_PATH;'
+      echo 'export CC=icc;'
+      echo 'export F77=ifort;'
+      echo 'export CXX=icpc;'
+    ;;
+    pgi)
+      echo 'export CC=pgcc;'
+      echo 'export F77=pgfortran;'
+      echo 'export CXX=pgCC;'
+      echo 'export PATH=/sw/linux/mpi/pgi/openmpi/bin/:/sw/linux/pgi-10.9/linux86-64/10.9/bin/:$PATH;'
+      echo 'export LD_LIBRARY_PATH=/sw/linux/pgi-10.9/linux86-64/10.9/lib/:/sw/linux/pgi-10.9/linux86-64/10.9/libso/:/sw/linux/mpi/pgi/openmpi/lib/:$LD_LIBRARY_PATH;'
+    ;;
+    *)
+      die "this should never appear - something went wrong in show_compenv"
+    ;;
+  esac
+}
+
 walltime_to_sec() {
   local secs wall
   [ -z "$1" ] && die "walltime_to_sec: Missing argument"
@@ -400,6 +458,11 @@ ADV     --runat HOST     Specify the host to run yourself
 ADV     --runatnow HOST  like --runat, but one do it one time, not after the resubmitting
 ADV     --queue  NAME.q  Overwrite the queue to be used with NAME.q
 ADV                      (also in the case of --queueinfo)
+ADV     --compenv NAME   Set your environment variables according to the compiler NAME
+ADV                      Options: $compenvs 
+ADV                      Default: $compenv
+ADV     --show-compenv   Show compiler environment variables (set with --compenv NAME first)
+ADV                      Useful in build scripts 'eval \$(${0##*/} --compenv icc --show-compenv)'
 
 
     JOBS OPTIONS:
@@ -455,6 +518,8 @@ ADV  takes time, so substract time needed for that from the wall of the actual s
                 (Note: -cpi is smart, the first time mdrun will start normal!)
        ${0##*/} -8 --needed '*' --resubmit confout.gro  mdrun -append -cpi state.cpt -maxh 35
                 (Note: --needed '*' needs a separate dir for the simulation!)
+ADV    ${0##*/} -8 --compenv intel mdrun
+ADV    ${0##*/} --compenv pgi --show-compenv
 
     Send comments and bugs to: junghans@mpip-mainz.mpg.de
 eoh
@@ -506,7 +571,7 @@ for i in "$@"; do
 done
 
 if [ -f ${rcfile/\~/$HOME} ]; then
-  source $rcfile || die "Error when sourcing $rcfile, correct it or remove it"
+  source ${rcfile/\~/$HOME} || die "Error when sourcing $rcfile, correct it or remove it"
   qecho "I have sourced $rcfile"
 fi
 
@@ -618,6 +683,14 @@ while [ "${1#-}" != "$1" ]; do
   --queue )
    specialq="$2"
    shift 2;;
+   --compenv )
+   compenv="$2"
+   [ -z "${compenvs/* $compenv *}" ] || die "The chosen compiler environment $compenv is not understood"
+   shift 2;;
+   --show-compenv )
+   show_compenv $compenv
+   exit $?
+   ;;
    --showjobs )
    run_on_host "$job_status -u $USER"
    exit $?;;
@@ -655,7 +728,7 @@ while [ "${1#-}" != "$1" ]; do
    show_logs "$2" "tailf"
    exit $?;;
   -v | --version)
-   echo "${0##*/}, version $(get_version $0) ($branch branch) by C. Junghans"
+   echo "${0##*/}, version $(get_version $0) ($branch branch) by C. Junghans & K. Koschke"
    exit 0;;
   --selfupdate)
    self_update
@@ -740,6 +813,7 @@ else
 fi
 
 queue_name="$(cpunr_to_queuename $ncpus)" || die
+set_compenv $compenv || die
 
 cat <<EOF >> $batchname
 #This script is generated by $USER@$HOSTNAME
@@ -787,6 +861,9 @@ cat <<EOF >>$batchname
 
 ${sh_source}
 
+#COMPILER and MPI VARIABLES
+$(show_compenv $compenv)
+
 cd $PWD
 echo Hi, I am job \$JOB_ID on \$HOSTNAME in \$PWD
 
@@ -814,6 +891,8 @@ if [ -n "${extra_begin_code}" ]; then
 #BEGIN of extra begin code
 ${extra_begin_code}
 #END of extra begin code
+
+#Extra compiler option
 EOF
 fi
 
