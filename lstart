@@ -58,6 +58,7 @@
 #version 3.8.1 ,22.01.10 -- rm batchname, when crashing
 #version 4.0.0 ,11.02.11 -- major cleanup and rewrite
 #version 4.0.1 ,17.02.11 -- fixed a bug when sourcing rcfile
+#version 4.0.2 ,18.02.11 -- added chmod u+x of batchname
 
 #############################################################
 # NEVER EVEN change settings below, but in your ~/.qstartrc #
@@ -185,8 +186,8 @@ check_job() {
   local submit_host pid message
   [ -z "$1" ] && die "check_job: Missing argument"
   number_check "$1" "--checkjob"
-  submit_host=$(show_column $1 2) || die
-  pid=$(show_column $1 3) || die
+  submit_host=$(show_column $1 5) || die
+  pid=$(show_column $1 6) || die
   message=$(run_on_host "ps -p $pid || true") || die
   if [ -z "${message/*$pid*}" ]; then
      qecho "Job $1: pid $pid on $submit_host found"
@@ -228,8 +229,8 @@ kill_job() {
   local submit_host pid gpid pids
   [ -z "$1" ] && die "kill_job: Missing argument"
   number_check "$1" "--killjob"
-  submit_host=$(show_column $1 2) || die
-  pid=$(show_column $1 3) || die
+  submit_host=$(show_column $1 5) || die
+  pid=$(show_column $1 6) || die
   run_on_host "ps --ppid $pid -o pid= | xargs kill" ||
     die "Could kill childs of pid $pid\nYou may want to run '${0##*/} --rmjob $1' to remove it from the jobfile"
 }
@@ -241,9 +242,9 @@ submit_job() {
   path="$(get_path_from_script $1)" || die
   [ "$submit_host" = "BEST" ] && find_best_host
   JOB_ID="$(get_jobid_from_script $1)" || die
-  echo "$JOB_ID $submit_host XXX $name $PWD $logfile $batchname (not started yet)" >> $jobfile
-  message="$(run_on_host "cd $PWD;nohup $1 >/dev/null 2>&1 &")" || die
-  qecho "Submitted to $submit_host"
+  echo "$JOB_ID $batchname $PWD $logfile $submit_host XXX(not started yet)" >> $jobfile
+  message="$(run_on_host "nohup $PWD/$1 &")" || die
+  qecho "Submitted to $submit_host $message"
 }
 
 print_jobids() {
@@ -303,7 +304,7 @@ get_next_free_jobid() {
   for i in $(awk '/^[^#]/{print $1}' $jobfile); do
     #i is not a number
     [ -z "${i//[0-9]}" ] || continue
-    [ $i -ge $max ] || max=$(($i+1))
+    [ $i -ge $max ] && max=$(($i+1))
   done
   echo "$max"
 }
@@ -490,7 +491,7 @@ show_logs() {
   local path logfile
   [ -z "$2" ] && die "show_logfile: Missing argument"
   path=$(show_path $1) | die
-  logfile=$(show_column $1 7) || die
+  logfile=$(show_column $1 4) || die
   #add path if logfile does not contain /
   [ -n "${logfile/*\/*}" ] && logfile="${path}/$logfile"
   [ -r "$logfile" ] || die "Logfile ($logfile) not readable or not found!"
@@ -500,7 +501,7 @@ show_logs() {
 
 show_path() {
   local path
-  path=$(show_column $1 4) || die
+  path=$(show_column $1 3) || die
   [[ -d "$path" ]] || die "show_path: $path is not a dir"
   echo "$path"
   return $?
@@ -787,17 +788,16 @@ cat <<EOF >> $batchname
 #by the command "$cmdline"
 #using $(get_version $0)
 
+cd $PWD
 exec > $logfile 2>&1
 echo "Renice job $JOB_ID and childs"
 renice $nice -p \$\$
 
-${set}line="$JOB_ID \$HOSTNAME \$\$ $name $PWD $logfile $batchname"
 sed -i '/^$JOB_ID /d' $jobfile
-echo \$line >> $jobfile
+echo "$JOB_ID $batchname $PWD $logfile \$HOSTNAME \$\$" >> $jobfile
 
 ${sh_source}
 
-cd $PWD
 echo Hi, I am job $JOB_ID on \$HOSTNAME in \$PWD
 EOF
 
@@ -860,12 +860,13 @@ else
    cat >> $batchname << EOF
 #mailstuff
 if [ \$result -eq 0 ]; then
-  tail -$lines $logfile | mail -s '$0##*/}: $name finished ($logfile)' $mail
+  tail -$lines $logfile | mail -s '$0##*/}: $batchname finished ($logfile)' $mail
 else
-  tail -$lines $logfile | mail -s '$0##*/}: $name aborted ($logfile)' $mail
+  tail -$lines $logfile | mail -s '$0##*/}: $batchname aborted ($logfile)' $mail
 fi
 EOF
 fi
+chmod u+x $batchname
 
 if [ "$submit" = "no" ]; then
   [[ "$batchname" != "/dev/stdout" ]] && qecho "to submit the script run: '${0##*/} --submit $batchname'"
