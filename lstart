@@ -860,9 +860,9 @@ else
    cat >> $batchname << EOF
 #mailstuff
 if [ \$result -eq 0 ]; then
-  tail -$lines $logfile | mail -s '$0##*/}: $batchname finished ($logfile)' $mail
+  tail -$lines $logfile | mail -s '${0##*/}: $batchname finished ($logfile)' $mail
 else
-  tail -$lines $logfile | mail -s '$0##*/}: $batchname aborted ($logfile)' $mail
+  tail -$lines $logfile | mail -s '${0##*/}: $batchname aborted ($logfile)' $mail
 fi
 EOF
 fi
