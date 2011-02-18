@@ -236,15 +236,15 @@ kill_job() {
 }
 
 submit_job() {
-  local message path line JOB_ID
+  local path line JOB_ID
   [ -z "$1" ] && die "submit_job: missing argument"
   [ -f "$1" ] || die "Could not find $1"
   path="$(get_path_from_script $1)" || die
   [ "$submit_host" = "BEST" ] && find_best_host
   JOB_ID="$(get_jobid_from_script $1)" || die
   echo "$JOB_ID $batchname $PWD $logfile $submit_host XXX(not started yet)" >> $jobfile
-  message="$(run_on_host "nohup $PWD/$1 &")" || die
-  qecho "Submitted to $submit_host $message"
+  run_on_host "nohup $PWD/$1 &" || die
+  qecho "Submitted to $submit_host"
 }
 
 print_jobids() {
@@ -846,9 +846,9 @@ ${extra_end_code}
 EOF
 fi
 
+[[ "$time" = "yes" ]] && echo date >> $batchname
 echo "#remove job from jobfile" >> $batchname
 echo "sed -i '/^$JOB_ID /d' $jobfile" >> $batchname
-[[ "$time" = "yes" ]] && echo date >> $batchname
 
 [ -z "$finish_file" ] || echo "[ \$result -eq 0 ] && touch '$finish_file'" >> $batchname
 
