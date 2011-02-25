@@ -30,6 +30,7 @@
 #version 0.2.6 ,04.02.11 -- added longhelp message
 #version 0.2.7 ,17.02.11 -- fixed a bug when sourcing rcfile
 #version 0.3.0 ,17.02.11 -- added --compenv
+#version 0.3.1 ,25.02.11 -- queue is now automatic
 
 ##############################################################
 # NEVER EVEN change settings below, but in your ~/.q2startrc #
@@ -277,9 +278,9 @@ cpunr_to_queuename() {
   if [ -n "$specialq" ]; then
     echo "$specialq"
   elif [ $1 -eq 1 ]; then
-    echo "Single.q"
+    echo ""
   elif [ $1 -eq 8 ]; then
-    echo "Std8Cores.q"
+    echo ""
   else
     die "Do not know how to handle this Number of cpus '$1' - only 1/8 cpus are supported at this time"
   fi
@@ -353,10 +354,16 @@ walltime_to_sec() {
 
 queue_info() {
   local queue
-  if [ -n "$1" ]; then
+  if [ -n "$specialq" ]; then
+    run_on_host "$job_info -sq $specialq"
+  elif [ -n "$1" ]; then
     number_check "$1" "--queueinfo"
     queue="$(cpunr_to_queuename "$1")" || die
-    run_on_host "$job_info -sq $queue"
+    if [ -z "$queue" ]; then
+      die "queue_info: the queue is defined automatically, if you want to see more info about a queue specify it with --queue before '--queueinfo'"
+    else
+      run_on_host "$job_info -sq $queue"
+    fi
   else
     run_on_host "$job_info -sql"
   fi
@@ -812,7 +819,6 @@ else
   die "Unsupported shell"
 fi
 
-queue_name="$(cpunr_to_queuename $ncpus)" || die
 set_compenv $compenv || die
 
 cat <<EOF >> $batchname
@@ -826,8 +832,9 @@ cat <<EOF >> $batchname
 #$ -j y
 #$ -o $logfile
 #$ -l h_rt=${wall_time}
-#$ -q ${queue_name}
 EOF
+queue_name="$(cpunr_to_queuename $ncpus)" || die
+[ -n "$queue_name" ] && echo "#$ -q ${queue_name}" >> $batchname
 
 [ -n "$(extra_queue_header $ncpus)" ] && extra_queue_header $ncpus >> $batchname
 [ -n "$hostname" ] && echo "#$ -l hostname=${hostname}" >> $batchname
