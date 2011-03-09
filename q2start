@@ -122,6 +122,16 @@ mail="none"
 header="JOBS ON THINC (thincXXX)"
 #shell to be used by default, none=bash
 myshell="${SHELL##*/}"
+if [ "$myshell" = "bash" ] || [ "$myshell" = "none" ]; then
+  exportCmd="export "
+elif [ "$myshell" = "zsh" ]; then
+  export="export "
+elif [ "$myshell" = "tcsh" ]; then
+  set="set "
+  exportCmd="setenv "
+else
+  die "Unsupported shell"
+fi
 #END DEFAULTS
 
 #internal options not set in rcfile
@@ -310,11 +320,16 @@ show_compenv(){
   [ -z "$1" ] && die "show_compenv: missing option"
   case $1 in
     gnu)
-      echo 'export LD_LIBRARY_PATH=/sw/linux/mpi/gcc/openmpi/lib:$LD_LIBRARY_PATH;'
-      echo 'export PATH=/sw/linux/mpi/gcc/openmpi/bin:$PATH;'
-      echo 'export CC=gcc;'
-      echo 'export F77=gfortran;'
-      echo 'export CXX=g++;'
+      echo "$set LD_LIBRARY_PATH=/sw/linux/mpi/gcc/openmpi/lib:\$LD_LIBRARY_PATH;"
+      echo "$set PATH=/sw/linux/mpi/gcc/openmpi/bin:\$PATH;"
+      echo "$set CC=gcc;"
+      echo "$set F77=gfortran;"
+      echo "$set CXX=g++;"
+      echo "$exportCmd LD_LIBRARY_PATH"
+      echo "$exportCmd PATH"
+      echo "$exportCmd CC"
+      echo "$exportCmd F77"
+      echo "$exportCmd CXX"
     ;;
     intel)
       #order is important: source intel vars first before overriding openmpi bin by
@@ -324,18 +339,28 @@ show_compenv(){
       echo 'source /sw/linux/intel/composerxe-2011.0.084/composerxe-2011.1.107/bin/iccvars.sh intel64;'
       #use the 11.1 version if you need the '-ipo' flag
       #echo 'source /sw/linux/intel/Compiler/11.1/072/bin/iccvars.sh intel64;'
-      echo 'export PATH=/sw/linux/mpi/intel/openmpi/bin/:$PATH;'
-      echo 'export LD_LIBRARY_PATH=/sw/linux/mpi/intel/openmpi/lib/:$LD_LIBRARY_PATH;'
-      echo 'export CC=icc;'
-      echo 'export F77=ifort;'
-      echo 'export CXX=icpc;'
+      echo "$set PATH=/sw/linux/mpi/intel/openmpi/bin/:\$PATH;"
+      echo "$set LD_LIBRARY_PATH=/sw/linux/mpi/intel/openmpi/lib/:\$LD_LIBRARY_PATH;"
+      echo "$set CC=icc;"
+      echo "$set F77=ifort;"
+      echo "$set CXX=icpc;"
+      echo "$exportCmd PATH"
+      echo "$exportCmd LD_LIBRARY_PATH"
+      echo "$exportCmd CC"
+      echo "$exportCmd F77"
+      echo "$exportCmd CXX"
     ;;
     pgi)
-      echo 'export CC=pgcc;'
-      echo 'export F77=pgfortran;'
-      echo 'export CXX=pgCC;'
-      echo 'export PATH=/sw/linux/mpi/pgi/openmpi/bin/:/sw/linux/pgi-10.9/linux86-64/10.9/bin/:$PATH;'
-      echo 'export LD_LIBRARY_PATH=/sw/linux/pgi-10.9/linux86-64/10.9/lib/:/sw/linux/pgi-10.9/linux86-64/10.9/libso/:/sw/linux/mpi/pgi/openmpi/lib/:$LD_LIBRARY_PATH;'
+      echo "$set CC=pgcc;"
+      echo "$set F77=pgfortran;"
+      echo "$set CXX=pgCC;"
+      echo "$set PATH=/sw/linux/mpi/pgi/openmpi/bin/:/sw/linux/pgi-10.9/linux86-64/10.9/bin/:\$PATH;"
+      echo "$set LD_LIBRARY_PATH=/sw/linux/pgi-10.9/linux86-64/10.9/lib/:/sw/linux/pgi-10.9/linux86-64/10.9/libso/:/sw/linux/mpi/pgi/openmpi/lib/:\$LD_LIBRARY_PATH;"
+      echo "$exportCmd CC"
+      echo "$exportCmd F77"
+      echo "$exportCmd CXX"
+      echo "$exportCmd PATH"
+      echo "$exportCmd LD_LIBRARY_PATH"
     ;;
     *)
       die "this should never appear - something went wrong in show_compenv"
@@ -674,7 +699,18 @@ while [ "${1#-}" != "$1" ]; do
    shift 2 ;;
    --shell)
    myshell="$2"
-   shift 2 ;;
+   shift 2
+   #define 'set' and 'export' commands first
+   if [ "$myshell" = "bash" ] || [ "$myshell" = "none" ]; then
+     exportCmd="export "
+   elif [ "$myshell" = "zsh" ]; then
+     export="export "
+   elif [ "$myshell" = "tcsh" ]; then
+     set="set "
+     exportCmd="setenv "
+   else
+     die "Unsupported shell"
+   fi ;;
    --source)
    extra_source="$2"
    shift 2 ;;
@@ -818,7 +854,6 @@ elif [ "$myshell" = "zsh" ]; then
   echo "#! /usr/bin/zsh" > $batchname
 elif [ "$myshell" = "tcsh" ]; then
   echo "#! /bin/tcsh" > $batchname
-  set="set "
 else
   die "Unsupported shell"
 fi
