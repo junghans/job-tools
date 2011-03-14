@@ -47,6 +47,7 @@
 #version 0.5.6 ,04.02.11 -- added longhelp message
 #version 0.5.7 ,09.02.11 -- print an error if ncpus was set twice
 #version 0.5.8 ,17.02.11 -- fixed a bug when sourcing rcfile
+#version 0.6.0 ,14.03.11 -- rm files in copy_back
 
 ##############################################################
 # NEVER EVEN change settings below, but in your ~/.llstartrc #
@@ -536,8 +537,10 @@ copy_back() {
   if [ "${HOSTNAME}" != "$real_submit_hostname" ]; then
     path=$(get_path_from_script $1) || die
     echo Copying back data from $submit_host:$path/ to .
-    scp -Cr $submit_host:$path/* . || \
-      die "scp -Cr $submit_host:./$path/* . failed"
+    scp -Cpr $submit_host:$path/* . || \
+      die "scp -Cpr $submit_host:./$path/* . failed"
+    ssh $submit_host "rm $path/*" || \
+      die "ssh $submit_host rm $path/* failed"
     return $?
   else
     echo "You are already on $real_submit_hostname, skipping copy back of files"
@@ -963,8 +966,8 @@ if [ "$batchname" != "/dev/stdout" ] && [ "${HOSTNAME}" != "$real_submit_hostnam
    [ "$message" = "Good" ] || die "$submit_host:\$HOME/$sim_base/$batchname exists"
    run_on_host "mkdir -p \$HOME/$sim_base/$batchname" || die "mkdir failed"
    echo Copying needed files to $submit_host:./$sim_base/$batchname/
-   scp -Cr $filelist $batchname $extra_source $submit_host:./$sim_base/$batchname/ || \
-     die "scp -Cr $filelist $batchname $submit_host:./$sim_base/$batchname/ failed"
+   scp -Cpr $filelist $batchname $extra_source $submit_host:./$sim_base/$batchname/ || \
+     die "scp -Cpr $filelist $batchname $submit_host:./$sim_base/$batchname/ failed"
 fi
 
 if [ "$submit" = "no" ]; then

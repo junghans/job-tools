@@ -481,6 +481,8 @@ ADV     --scratch        Use scratch on "$scratch_dir/\$USER/"
 ADV     --needed FILES   Give the files needed to be copy to the scratch dir to
 ADV                      run, remember to use quotes ("file1 file2 file3" or "\$(ls *.d)")
 ADV                      (implies --scratch)
+ADV     --cpback FILE    Copy back files from scratch, which was start with BATCH and
+ADV                      remove them afterwards (useful after crash)
 
     QUEUE OPTIONS:
     -N                   Number of cpus (also determines the queue together with walltime)
@@ -583,6 +585,23 @@ show_path() {
   path=$(echo -e "$message" | awk '/^cwd/{ print $2}')
   [ -z "$path" ] && die "show_path: Could not get path"
   echo "$path"
+  return $?
+}
+
+copy_back() {
+  local path logfile host
+  [ -z "$1" ] && die "copy_back: Missing argument"
+  [ -f "$1" ] || die "copy_back: Could not found $1"
+  [ -z "$(grep -e "${0##*/}" $1)" ] && die "$1 seems NOT to be a '${0##*/}' script"
+  logfile=$(sed -n 's/^#$ -o //p' $1) || die "copy_back: could not get logfile"
+  [ -f "${logfile}" ] || die "copy_back: logfile '$logfile' not found"
+  host="$(sed -n 's/^Hi, I am job [0-9] on \(.*\) in .*$/\2/p')"
+  [ -z "$host" ] && die "copy_back: Could not get hostname for logfile '$logfile'"
+  path="$(sed -n 's/^Copy needed files to \(.*\)$/\1/p')"
+  [ -z "$path" ] && die "copy_back: Could not get path for logfile '$logfile'"
+  echo Copying back data from $host:$path/ to .
+  scp -Cpr "$host:$path/*" . || die "scp -Cr $host:./$path/* . failed"
+  ssh $host "rm -rf $path" || die "ssh $host rm -rf $path failed"
   return $?
 }
 
@@ -742,6 +761,9 @@ while [ "${1#-}" != "$1" ]; do
    exit $?;;
    --alljobs )
    run_on_host "$job_status -u \\*"
+   exit $?;;
+   --cpback )
+   copy_back $2
    exit $?;;
    --killjob )
    kill_job $2
@@ -923,7 +945,7 @@ ${set}newdir=$scratch_dir/\$USER/\$JOB_ID
 mkdir -p \$newdir || exit 1
 EOF
 [ -n "$filelist" ] && cat <<EOF >>$batchname
-echo Copy needed files:
+echo Copy needed files to \$newdir
 echo $filelist
 cp -r $filelist \$newdir
 echo finished copying files

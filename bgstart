@@ -26,6 +26,7 @@
 #version 0.2.2 ,04.02.11 -- updated help message
 #version 0.2.3 ,04.02.11 -- added longhelp message
 #version 0.2.4 ,17.02.11 -- fixed a bug when sourcing rcfile
+#version 0.3.0 ,14.03.11 -- rm files in copy_back
 
 ##############################################################
 # NEVER EVEN change settings below, but in your ~/.bgstartrc #
@@ -508,8 +509,10 @@ copy_back() {
   if [ "${HOSTNAME}" != "$real_submit_hostname" ]; then
     path=$(get_path_from_script $1) || die
     echo Copying back data from $submit_host:$path/ to .
-    scp -Cr $submit_host:$path/* . || \
-      die "scp -Cr $submit_host:./$path/* . failed"
+    scp -Cpr $submit_host:$path/* . || \
+      die "scp -Cpr $submit_host:./$path/* . failed"
+    ssh $submit_host "rm $path/*" || \
+      die "ssh $submit_host rm $path/* failed"
     return $?
   else
     echo "You are already on $real_submit_hostname, skipping copy back of files"
@@ -886,7 +889,7 @@ if [ "${HOSTNAME}" != "$real_submit_hostname" ]; then
    [ "$message" = "Good" ] || die "$gateway:$scp_dir/$batchname exists"
    ssh $gateway "mkdir -p $scp_dir/$batchname" || die "mkdir failed"
    echo "Copying needed files to $gateway:$scp_dir/$batchname/"
-   scp -Cr $filelist $batchname $extra_source $gateway:$scp_dir/$batchname/ || \
+   scp -Cpr $filelist $batchname $extra_source $gateway:$scp_dir/$batchname/ || \
      die "scp of files failed"
 fi
 
