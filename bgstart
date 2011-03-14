@@ -511,8 +511,9 @@ copy_back() {
     echo Copying back data from $submit_host:$path/ to .
     scp -Cpr $submit_host:$path/* . || \
       die "scp -Cpr $submit_host:./$path/* . failed"
-    ssh $submit_host "rm $path/*" || \
-      die "ssh $submit_host rm $path/* failed"
+    echo Removing $path from $submit_host
+    ssh $submit_host "rm -rf $path" || \
+      die "ssh $submit_host rm  -rf $path failed"
     return $?
   else
     echo "You are already on $real_submit_hostname, skipping copy back of files"
