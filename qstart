@@ -78,6 +78,7 @@
 #version 1.1.6 ,04.02.11 -- added longhelp message
 #version 1.1.7 ,10.02.11 -- back to thop01 as default submit_host
 #version 1.1.8 ,17.02.11 -- fixed a bug when sourcing rcfile
+#version 1.2.0 ,14.03.11 -- added --cpback
 
 #############################################################
 # NEVER EVEN change settings below, but in your ~/.qstartrc #
@@ -458,6 +459,8 @@ ADV     --scratch        Use scratch on "$scratch_dir/\$USER/"
 ADV     --needed FILES   Give the files needed to be copy to the scratch dir to
 ADV                      run, remember to use quotes ("file1 file2 file3" or "\$(ls *.d)")
 ADV                      (implies --scratch)
+ADV     --cpback FILE    Copy back files from scratch from the job, which was start with FILE
+ADV                      and remove the dir afterwards (useful after crash)
 
     QUEUE OPTIONS:
     -N                   Number of cpus (also determines the queue together with walltime)
@@ -550,6 +553,24 @@ show_path() {
   path=$(echo -e "$message" | awk '/^cwd/{ print $2}')
   [ -z "$path" ] && die "show_path: Could not get path"
   echo "$path"
+  return $?
+}
+
+copy_back() {
+  local path logfile host
+  [ -z "$1" ] && die "copy_back: Missing argument"
+  [ -f "$1" ] || die "copy_back: Could not found $1"
+  [ -z "$(grep -e "${0##*/}" $1)" ] && die "$1 seems NOT to be a '${0##*/}' script"
+  logfile=$(sed -n 's/^#$ -o //p' $1) || die "copy_back: could not get logfile"
+  [ -f "${logfile}" ] || die "copy_back: logfile '$logfile' not found"
+  host="$(sed -n 's/^Hi, I am job [0-9]* on \(.*\) in .*$/\1/p' "$logfile")"
+  [ -z "$host" ] && die "copy_back: Could not get hostname for logfile '$logfile'"
+  path="$(sed -n 's/^Starting simulation in \(.*\)$/\1/p' "$logfile")"
+  [ -z "$path" ] && die "copy_back: Could not get path for logfile '$logfile'"
+  echo Copying back data from $host:$path/ to .
+  scp -Cpr "$host:$path/*" . || die "scp -Cr $host:$path/* . failed"
+  echo Removing $path on $host
+  ssh $host "rm -rf $path" || die "ssh $host rm -rf $path failed"
   return $?
 }
 
@@ -694,6 +715,9 @@ while [ "${1#-}" != "$1" ]; do
    exit $?;;
    --alljobs )
    run_on_host "$job_status"
+   exit $?;;
+   --cpback )
+   copy_back $2
    exit $?;;
    --killjob )
    kill_job $2
@@ -934,7 +958,7 @@ echo *
 cp -ru * \$olddir
 echo finished copying files
 cd \$olddir
-echo Removing scratch dir
+[ \$result -eq 0 ] && echo Removing scratch dir
 [ \$result -eq 0 ] && rm -fr \$newdir
 EOF
 fi

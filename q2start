@@ -32,6 +32,7 @@
 #version 0.3.0 ,17.02.11 -- added --compenv
 #version 0.3.1 ,25.02.11 -- queue is now automatic
 #version 0.3.2 ,11.03.11 -- fixed a tcsh bug in --show-compenv
+#version 0.4.0 ,14.03.11 -- added --cpback
 
 ##############################################################
 # NEVER EVEN change settings below, but in your ~/.q2startrc #
@@ -481,8 +482,8 @@ ADV     --scratch        Use scratch on "$scratch_dir/\$USER/"
 ADV     --needed FILES   Give the files needed to be copy to the scratch dir to
 ADV                      run, remember to use quotes ("file1 file2 file3" or "\$(ls *.d)")
 ADV                      (implies --scratch)
-ADV     --cpback FILE    Copy back files from scratch, which was start with BATCH and
-ADV                      remove them afterwards (useful after crash)
+ADV     --cpback FILE    Copy back files from scratch from the job, which was start with FILE
+ADV                      and remove the dir afterwards (useful after crash)
 
     QUEUE OPTIONS:
     -N                   Number of cpus (also determines the queue together with walltime)
@@ -597,10 +598,10 @@ copy_back() {
   [ -f "${logfile}" ] || die "copy_back: logfile '$logfile' not found"
   host="$(sed -n 's/^Hi, I am job [0-9]* on \(.*\) in .*$/\1/p' "$logfile")"
   [ -z "$host" ] && die "copy_back: Could not get hostname for logfile '$logfile'"
-  path="$(sed -n 's/^Copy needed files to \(.*\)$/\1/p' "$logfile")"
+  path="$(sed -n 's/^Starting simulation in \(.*\)$/\1/p' "$logfile")"
   [ -z "$path" ] && die "copy_back: Could not get path for logfile '$logfile'"
   echo Copying back data from $host:$path/ to .
-  scp -Cpr "$host:$path/*" . || die "scp -Cr $host:./$path/* . failed"
+  scp -Cpr "$host:$path/*" . || die "scp -Cr $host:$path/* . failed"
   echo Removing $path on $host
   ssh $host "rm -rf $path" || die "ssh $host rm -rf $path failed"
   return $?
@@ -946,7 +947,7 @@ ${set}newdir=$scratch_dir/\$USER/\$JOB_ID
 mkdir -p \$newdir || exit 1
 EOF
 [ -n "$filelist" ] && cat <<EOF >>$batchname
-echo Copy needed files to \$newdir
+echo Copy needed files:
 echo $filelist
 cp -r $filelist \$newdir
 echo finished copying files
