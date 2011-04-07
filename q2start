@@ -33,6 +33,7 @@
 #version 0.3.1 ,25.02.11 -- queue is now automatic
 #version 0.3.2 ,11.03.11 -- fixed a tcsh bug in --show-compenv
 #version 0.4.0 ,14.03.11 -- added --cpback
+#version 0.4.1 ,07.04.11 -- added --compenv none
 
 ##############################################################
 # NEVER EVEN change settings below, but in your ~/.q2startrc #
@@ -155,7 +156,7 @@ branch=mpip
 selfurl="http://job-tools.cj-overlay.googlecode.com/hg/q2start?r=$branch"
 verurl="http://www.mpip-mainz.mpg.de/~junghans/job-tools/version.php"
 #compiler environment possible
-compenvs=" gnu intel  pgi "
+compenvs=" gnu intel  pgi none "
 
 #workaround until SGE is working everywhere
 export SGE_CELL="THINCC1"
@@ -311,6 +312,9 @@ set_compenv(){
     pgi)
       mpirun_cmd="/sw/linux/mpi/pgi/openmpi/bin/mpirun"
     ;;
+    none)
+      mpirun_cmd="mpirun"
+      ;;
     *)
       die "this should never appear - something went wrong in set_compenv"
     ;;
@@ -363,6 +367,8 @@ show_compenv(){
       echo "${export}CXX;"
       echo "${export}PATH;"
       echo "${export}LD_LIBRARY_PATH;"
+    ;;
+    none)
     ;;
     *)
       die "this should never appear - something went wrong in show_compenv"
@@ -931,8 +937,9 @@ cat <<EOF >>$batchname
 
 ${sh_source}
 
-#COMPILER and MPI VARIABLES
+#BEGIN COMPILER and MPI VARIABLES for $compenv
 $(show_compenv $compenv)
+#END  COMPILER and MPI VARIABLES for $compenv
 
 cd $PWD
 echo Hi, I am job \$JOB_ID on \$HOSTNAME in \$PWD
