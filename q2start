@@ -34,6 +34,7 @@
 #version 0.3.2 ,11.03.11 -- fixed a tcsh bug in --show-compenv
 #version 0.4.0 ,14.03.11 -- added --cpback
 #version 0.4.2 ,21.04.11 -- fixed a tcsh bug ($set was not set)
+#version 0.4.3 ,21.04.11 -- fixed a tcsh bug (setenv XXX YYY)
 
 ##############################################################
 # NEVER EVEN change settings below, but in your ~/.q2startrc #
@@ -291,10 +292,8 @@ set_set() {
   [ -z "$myshell" ] && die "set_set: myshell is not set"
   if [ "$myshell" = "bash" ] || [ "$myshell" = "none" ] || [ "$myshell" = "zsh" ]; then
     set=""
-    export="export "
   elif [ "$myshell" = "tcsh" ]; then
     set="set "
-    export="setenv "
   else
     die "Unsupported shell ($myshell)"
   fi
@@ -327,16 +326,11 @@ show_compenv(){
   [ -z "$1" ] && die "show_compenv: missing option"
   case $1 in
     gnu)
-      echo "${set}LD_LIBRARY_PATH=/sw/linux/mpi/gcc/openmpi/lib:\$LD_LIBRARY_PATH;"
-      echo "${set}PATH=/sw/linux/mpi/gcc/openmpi/bin:\$PATH;"
-      echo "${set}CC=gcc;"
-      echo "${set}F77=gfortran;"
-      echo "${set}CXX=g++;"
-      echo "${export}LD_LIBRARY_PATH;"
-      echo "${export}PATH;"
-      echo "${export}CC;"
-      echo "${export}F77;"
-      echo "${export}CXX;"
+      export_variable LD_LIBRARY_PATH /sw/linux/mpi/gcc/openmpi/lib:\$LD_LIBRARY_PATH
+      export_variable PATH /sw/linux/mpi/gcc/openmpi/bin:\$PATH
+      export_variable CC gcc
+      export_variable F77 gfortran
+      export_variable CXX g++
     ;;
     intel)
       #order is important: source intel vars first before overriding openmpi bin by
@@ -347,28 +341,18 @@ show_compenv(){
       echo 'source /sw/linux/intel/XE12u2/bin/compilervars.sh intel64;'
       #use the 11.1 version if you need the '-ipo' flag
       #echo 'source /sw/linux/intel/11.1/bin/iccvars.sh intel64;'
-      echo "${set}PATH=/sw/linux/mpi/intel/openmpi/bin/:\$PATH;"
-      echo "${set}LD_LIBRARY_PATH=/sw/linux/mpi/intel/openmpi/lib/:\$LD_LIBRARY_PATH;"
-      echo "${set}CC=icc;"
-      echo "${set}F77=ifort;"
-      echo "${set}CXX=icpc;"
-      echo "${export}PATH;"
-      echo "${export}LD_LIBRARY_PATH;"
-      echo "${export}CC;"
-      echo "${export}F77;"
-      echo "${export}CXX;"
+      export_variable PATH /sw/linux/mpi/intel/openmpi/bin/:\$PATH
+      export_variable LD_LIBRARY_PATH /sw/linux/mpi/intel/openmpi/lib/:\$LD_LIBRARY_PATH
+      export_variable CC icc
+      export_variable F77 ifort
+      export_variable CXX icpc
     ;;
     pgi)
-      echo "${set}CC=pgcc;"
-      echo "${set}F77=pgfortran;"
-      echo "${set}CXX=pgCC;"
-      echo "${set}PATH=/sw/linux/mpi/pgi/openmpi/bin/:/sw/linux/pgi-10.9/linux86-64/10.9/bin/:\$PATH;"
-      echo "${set}LD_LIBRARY_PATH=/sw/linux/pgi-10.9/linux86-64/10.9/lib/:/sw/linux/pgi-10.9/linux86-64/10.9/libso/:/sw/linux/mpi/pgi/openmpi/lib/:\$LD_LIBRARY_PATH;"
-      echo "${export}CC;"
-      echo "${export}F77;"
-      echo "${export}CXX;"
-      echo "${export}PATH;"
-      echo "${export}LD_LIBRARY_PATH;"
+      export_variable CC pgcc
+      export_variable F77 pgfortran
+      export_variable CXX pgCC
+      export_variable PATH /sw/linux/mpi/pgi/openmpi/bin/:/sw/linux/pgi-10.9/linux86-64/10.9/bin/:\$PATH
+      export_variable LD_LIBRARY_PATH /sw/linux/pgi-10.9/linux86-64/10.9/lib/:/sw/linux/pgi-10.9/linux86-64/10.9/libso/:/sw/linux/mpi/pgi/openmpi/lib/:\$LD_LIBRARY_PATH
     ;;
     none)
     ;;
@@ -376,6 +360,18 @@ show_compenv(){
       die "this should never appear - something went wrong in show_compenv"
     ;;
   esac
+}
+
+export_variable() {
+  [ -z "$myshell" ] && die "export_variable: myshell is not set"
+  [ -z "$2" ] && die "export_variable: missing argument"
+  if [ "$myshell" = "bash" ] || [ "$myshell" = "none" ] || [ "$myshell" = "zsh" ]; then
+    echo "export $1=\"${2}\";"
+  elif [ "$myshell" = "tcsh" ]; then
+    echo "setenv $1 \"${2}\";"
+  else
+    die "Unsupported shell ($myshell)"
+  fi
 }
 
 walltime_to_sec() {
