@@ -33,7 +33,7 @@
 #version 0.3.1 ,25.02.11 -- queue is now automatic
 #version 0.3.2 ,11.03.11 -- fixed a tcsh bug in --show-compenv
 #version 0.4.0 ,14.03.11 -- added --cpback
-#version 0.4.1 ,07.04.11 -- added --compenv none
+#version 0.4.2 ,21.04.11 -- fixed a tcsh bug ($set was not set)
 
 ##############################################################
 # NEVER EVEN change settings below, but in your ~/.q2startrc #
@@ -125,22 +125,11 @@ mail="none"
 header="JOBS ON THINC (thincXXX)"
 #shell to be used by default, none=bash
 myshell="${SHELL##*/}"
-if [ "$myshell" = "bash" ] || [ "$myshell" = "none" ] || [ "$myshell" = "zsh" ]; then
-  set=""
-  export="export "
-elif [ "$myshell" = "tcsh" ]; then
-  set="set "
-  export="setenv "
-else
-  die "Unsupported shell"
-fi
 #END DEFAULTS
 
 #internal options not set in rcfile
 #usage print out
 usage="${0##*/} [OPTIONS] COMMAND [options]"
-#internal for set command, empty for bash, but 'set' for tcsh
-set=""
 #was the connection already checked
 checked_connection="no"
 #if the job submit directly
@@ -295,6 +284,19 @@ cpunr_to_queuename() {
     echo ""
   else
     die "Do not know how to handle this Number of cpus '$1' - only 1/8 cpus are supported at this time"
+  fi
+}
+
+set_set() {
+  [ -z "$myshell" ] && die "set_set: myshell is not set"
+  if [ "$myshell" = "bash" ] || [ "$myshell" = "none" ] || [ "$myshell" = "zsh" ]; then
+    set=""
+    export="export "
+  elif [ "$myshell" = "tcsh" ]; then
+    set="set "
+    export="setenv "
+  else
+    die "Unsupported shell ($myshell)"
   fi
 }
 
@@ -629,6 +631,9 @@ get_path_from_script(){
 ################################################
 shopt -s extglob
 
+#we need to call that here to make it work in --show-compenv
+set_set
+
 cmdline="${0##*/}"
 for i in "$@"; do
   [ -z "${i//*[[:space:]]*}" ] && cmdline="${cmdline} '$i'" || cmdline="${cmdline} $i"
@@ -727,17 +732,8 @@ while [ "${1#-}" != "$1" ]; do
    shift 2 ;;
    --shell)
    myshell="$2"
-   shift 2
-   #define 'set' and 'export' commands first
-   if [ "$myshell" = "bash" ] || [ "$myshell" = "none" ] || [ "$myshell" = "zsh" ]; then
-     set=""
-     export="export "
-   elif [ "$myshell" = "tcsh" ]; then
-     set="set "
-     export="setenv "
-   else
-     die "Unsupported shell"
-   fi ;;
+   set_set
+   shift 2;;
    --source)
    extra_source="$2"
    shift 2 ;;
