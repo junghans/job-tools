@@ -913,7 +913,8 @@ if [ -z "$mail" ] || [ "$mail" = "none" ]; then
   echo "#$ -m n" >> $batchname
 else
   echo "#$ -m e" >> $batchname
-  [ "$mail" = "auto" ] || echo "#$ -M $mail" >> $batchname
+  [ "$mail" = "auto" ] && mail="${USER}@mpip-mainz.mpg.de"
+  echo "#$ -M $mail" >> $batchname
 fi
 
 if [ "$myshell" = "bash" ]; then
