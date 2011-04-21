@@ -79,6 +79,7 @@
 #version 1.1.7 ,10.02.11 -- back to thop01 as default submit_host
 #version 1.1.8 ,17.02.11 -- fixed a bug when sourcing rcfile
 #version 1.2.0 ,14.03.11 -- added --cpback
+#version 1.2.1 ,21.04.11 -- fixed a bug in mail=auto
 
 #############################################################
 # NEVER EVEN change settings below, but in your ~/.qstartrc #
@@ -858,7 +859,8 @@ if [ -z "$mail" ] || [ "$mail" = "none" ]; then
   echo "#$ -m n" >> $batchname
 else
   echo "#$ -m e" >> $batchname
-  [ "$mail" = "auto" ] || echo "#$ -M $mail" >> $batchname
+  [ "$mail" = "auto" ] && mail="${USER}@mpip-mainz.mpg.de"
+  echo "#$ -M $mail" >> $batchname
 fi
 
 if [ "$myshell" = "bash" ]; then
