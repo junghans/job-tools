@@ -33,8 +33,10 @@
 #version 0.3.1 ,25.02.11 -- queue is now automatic
 #version 0.3.2 ,11.03.11 -- fixed a tcsh bug in --show-compenv
 #version 0.4.0 ,14.03.11 -- added --cpback
+#version 0.4.1 ,07.04.11 -- added --compenv none
 #version 0.4.2 ,21.04.11 -- fixed a tcsh bug ($set was not set)
 #version 0.4.3 ,21.04.11 -- fixed a tcsh bug (setenv XXX YYY)
+#version 0.4.4 ,26.04.11 -- fixed mpirun for --compenv none
 
 ##############################################################
 # NEVER EVEN change settings below, but in your ~/.q2startrc #
@@ -131,6 +133,8 @@ myshell="${SHELL##*/}"
 #internal options not set in rcfile
 #usage print out
 usage="${0##*/} [OPTIONS] COMMAND [options]"
+#internal for set command, empty for bash, but 'set' for tcsh
+set=""
 #was the connection already checked
 checked_connection="no"
 #if the job submit directly
@@ -288,17 +292,6 @@ cpunr_to_queuename() {
   fi
 }
 
-set_set() {
-  [ -z "$myshell" ] && die "set_set: myshell is not set"
-  if [ "$myshell" = "bash" ] || [ "$myshell" = "none" ] || [ "$myshell" = "zsh" ]; then
-    set=""
-  elif [ "$myshell" = "tcsh" ]; then
-    set="set "
-  else
-    die "Unsupported shell ($myshell)"
-  fi
-}
-
 set_compenv(){
   [ -z "$1" ] && die "set_compenv: missing option"
   #do not overwrite user settings
@@ -314,7 +307,7 @@ set_compenv(){
       mpirun_cmd="/sw/linux/mpi/pgi/openmpi/bin/mpirun"
     ;;
     none)
-      mpirun_cmd="mpirun"
+      mpirun_cmd="/usr/lib64/mpi/gcc/openmpi/bin/mpirun"
       ;;
     *)
       die "this should never appear - something went wrong in set_compenv"
@@ -627,9 +620,6 @@ get_path_from_script(){
 ################################################
 shopt -s extglob
 
-#we need to call that here to make it work in --show-compenv
-set_set
-
 cmdline="${0##*/}"
 for i in "$@"; do
   [ -z "${i//*[[:space:]]*}" ] && cmdline="${cmdline} '$i'" || cmdline="${cmdline} $i"
@@ -728,7 +718,6 @@ while [ "${1#-}" != "$1" ]; do
    shift 2 ;;
    --shell)
    myshell="$2"
-   set_set
    shift 2;;
    --source)
    extra_source="$2"
@@ -922,6 +911,7 @@ elif [ "$myshell" = "tcsh" ]; then
   elif [ -f ~/.cshrc ]; then
     sh_source="source ~/.cshrc"
   fi
+  set="set "
 elif [ "$myshell" = "none" ]; then
   echo "#$ -S /bin/bash" >> $batchname
 fi
