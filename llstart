@@ -166,7 +166,7 @@ qecho() {
 
 die() {
   [ -z "$1" ] || echo -e "$*" >&2
-  [ "$direct_submit" = "no" ] && [ -n "$batchname" ] && [ -f "$batchname" ] && rm -f "$batchname" && die "batchname $batchname removed"
+  [ "$direct_submit" = "no" ] && [ -n "$batchname" ] && [ -f "$batchname" ] && rm -f "$batchname" && die "batchfile $batchname removed"
   exit 1
 }
 
@@ -404,7 +404,7 @@ ADV     --batch NAME     Change name of the submit script
 ADV                      Default:  \$(mktemp ${name}$template)
 ADV                      (Argument is NAME+TEMPLATE)
 ADV -l, --log NAME       Change name of the output file
-ADV                      Default: log_"batch"
+ADV                      Default: "batch".log
 ADV     --template TEXT  Change template for mktemp
 ADV                      Default: $template
 ADV -a, --auto           Use first argument as name
@@ -790,9 +790,9 @@ fi
 
 if [ -z "$logfile" ]; then
   if [ "$batchname" = "/dev/stdout" ]; then
-    logfile="log_$name"
+    logfile="$name.log"
   else
-    logfile="log_$batchname"
+    logfile="$batchname.log"
   fi
 fi
 
