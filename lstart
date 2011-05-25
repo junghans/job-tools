@@ -480,7 +480,7 @@ ADV -v, --version        Prints version
        ${0##*/} -8p sleep 30
        ${0##*/} -8p --nompi mpirun -np 8 sleep 30
        ${0##*/} --name gromacs mdrun -v
-       ${0##*/} -8 mdrun
+       ${0##*/} -8 mdrun_mpi
        ${0##*/} echo -e 'SOL\\\\nSOL' \| g_rdf -b 100 -n index.ndx
 
     Send comments and bugs to: junghans@mpip-mainz.mpg.de

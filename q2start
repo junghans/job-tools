@@ -548,14 +548,14 @@ ADV  takes time, so substract time needed for that from the wall of the actual s
        ${0##*/} -8p sleep 30
        ${0##*/} -8p --nompi mpirun -np 8 sleep 30
        ${0##*/} --name gromacs mdrun -v
-       ${0##*/} -8 --needed topol.tpr mdrun
+       ${0##*/} -8 --needed topol.tpr mdrun_mpi
        ${0##*/} echo -e 'SOL\\\\nSOL' \| g_rdf -b 100 -n index.ndx
        ${0##*/} -8 --resubmit confout.gro --nompi mdrun -cpi state.cpt -maxh 36
-       ${0##*/} -8 --source ~/myGromacs/GMXRC --resubmit confout.gro mdrun -append -cpi state.cpt -maxh 36
+       ${0##*/} -8 --source ~/myGromacs/GMXRC --resubmit confout.gro mdrun_mpi -append -cpi state.cpt -maxh 36
                 (Note: -cpi is smart, the first time mdrun will start normal!)
-       ${0##*/} -8 --needed '*' --resubmit confout.gro  mdrun -append -cpi state.cpt -maxh 35
+       ${0##*/} -8 --needed '*' --resubmit confout.gro  mdrun_mpi -append -cpi state.cpt -maxh 35
                 (Note: --needed '*' needs a separate dir for the simulation!)
-ADV    ${0##*/} -8 --compenv intel mdrun
+ADV    ${0##*/} -8 --compenv intel mdrun_mpi
 ADV    ${0##*/} --compenv pgi --show-compenv
 
     Send comments and bugs to: junghans@mpip-mainz.mpg.de
