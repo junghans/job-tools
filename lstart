@@ -59,6 +59,7 @@
 #version 4.0.0 ,11.02.11 -- major cleanup and rewrite
 #version 4.0.1 ,17.02.11 -- fixed a bug when sourcing rcfile
 #version 4.0.2 ,18.02.11 -- added chmod u+x of batchname
+#version 4.0.3 ,26.05.11 -- missing a bug in hostlist
 
 #############################################################
 # NEVER EVEN change settings below, but in your ~/.qstartrc #
@@ -315,7 +316,7 @@ find_best_host() {
   [ -f "$hostlist" ] || die "find_best_host: could not find listhost '$hostlist' (give it with --hostlist)"
   xload=100
   xhost=BEST
-  for host in $(<hostlist); do
+  for host in $(<$hostlist); do
     qecho -n "Checking $host..."
     uptime=$(ssh -o ConnectTimeout=15 $host uptime 2>/dev/null) || uptime=XXX
     [ "$uptime" = "XXX" ] && echo " failed (ssh)" && continue
