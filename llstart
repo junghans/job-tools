@@ -896,7 +896,15 @@ cd $sim_dir
 echo Hi, I am job \$JOB_ID on \$HOSTNAME in \$PWD
 
 EOF
-[ -n "$extra_source" ] && echo "source $extra_source" >> $batchname
+if [ -n "$extra_source" ]; then
+  echo "#we can not check in advance if the next line will work" >> $batchname
+  if [ -f "$extra_source" ]; then #it is here an needs to be copied
+    filelist="$extra_source $filelist"
+    echo "source ./${extra_source##*/} || exit 1" >> $batchname
+  else #it is remote
+    echo "source ${extra_source} || exit 1" >> $batchname
+  fi
+fi
 
 if [ -n "${extra_begin_code}" ]; then
   cat <<EOF >>$batchname
@@ -967,7 +975,7 @@ if [ "$batchname" != "/dev/stdout" ] && [ "${HOSTNAME}" != "$real_submit_hostnam
    [ "$message" = "Good" ] || die "$submit_host:\$HOME/$sim_base/$batchname exists"
    run_on_host "mkdir -p \$HOME/$sim_base/$batchname" || die "mkdir failed"
    echo Copying needed files to $submit_host:./$sim_base/$batchname/
-   scp -Cpr $filelist $batchname $extra_source $submit_host:./$sim_base/$batchname/ || \
+   scp -Cpr $filelist $batchname $submit_host:./$sim_base/$batchname/ || \
      die "scp -Cpr $filelist $batchname $submit_host:./$sim_base/$batchname/ failed"
 fi
 

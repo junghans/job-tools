@@ -803,7 +803,10 @@ ${sh_source}
 echo Hi, I am job $JOB_ID on \$HOSTNAME in \$PWD
 EOF
 
-[ -n "$extra_source" ] && echo "source $extra_source" >> $batchname
+if [ -n "$extra_source" ]; then
+  $(source $extra_source) || die "sourcing of file after --source failed, please check again"
+  echo "source $extra_source" >> $batchname
+fi
 if [ -n "${extra_begin_code}" ]; then
   cat <<EOF >>$batchname
 #BEGIN of extra begin code
