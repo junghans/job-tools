@@ -497,7 +497,7 @@ ADV                      and remove the dir afterwards (useful after crash)
                          Default: $ncpus
 ADV     --nompi          This is NOT a mpi job, so do NOT add mpirun (or equivalent)
 ADV                      to the command line (for ncpus > 1) automatically
-        --walltime TIME  Change wall clock time (use 1cpu and  00:20:00 for test queue)
+        --walltime TIME  Change wall clock time (use 8cpu and  00:15:00 for test queue)
                          Default: $wall_time
 ADV     --runat HOST     Specify the host to run yourself
 ADV     --runatnow HOST  like --runat, but one do it one time, not after the resubmitting
