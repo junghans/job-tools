@@ -61,6 +61,7 @@
 #version 4.0.2 ,18.02.11 -- added chmod u+x of batchname
 #version 4.0.3 ,26.05.11 -- missing a bug in hostlist
 #version 4.0.4 ,27.05.11 -- fixed a bug in find_best_host
+#version 4.0.5 ,01.08.11 -- fixed a bug in mktemp
 
 #############################################################
 # NEVER EVEN change settings below, but in your ~/.qstartrc #
@@ -151,7 +152,6 @@ jobfile="$HOME/.runingjobs"
 #where to look for updates
 branch=mpip
 selfurl="http://job-tools.cj-overlay.googlecode.com/hg/lstart?r=$branch"
-verurl="http://www.mpip-mainz.mpg.de/~junghans/job-tools/version.php"
 
 qecho() {
   [[ "$quiet" = "no" ]] && echo -e "$@"
@@ -373,7 +373,6 @@ get_webversion() {
 
 version_check() {
   [ -z "$(type -p wget)" ] && return 1
-  [ "$(wget -q -O - "$verurl?name=${0##*/}&i=${USER}%40$HOSTNAME" 2>&1)" = "active" ] || return 1
   old_version="$(get_version $0)"
   [ "$1" = "-q" ] && new_version="$(get_webversion -q)" || new_version="$(get_webversion)"
   [ "$1" = "-q" ] || echo "Version of $selfurl is: $new_version"
@@ -528,6 +527,29 @@ get_jobid_from_script(){
   number_check "$id" "get_jobid_from_script"
   echo "$id"
 }
+
+if [ -z "$(type -p mktemp)" ]; then
+  mktemp() {
+    [[ $1 = "-u" ]] && shift
+    [[ -z $1 ]] && die "mktemp: missing argument"
+    [[ -z ${1##*X} ]] || die "mktemp: argument has to end at least with X"
+    local end trunc i l tmp newend
+    end=${1##*[^X]}
+    trunc=${1%${end}}
+    l=${end//[^X]}
+    l=${#l}
+    while true; do
+      newend="$end"
+      for ((i=0;i<$l;i++)); do
+        newend="${newend/X/${RANDOM:0:1}}"
+      done
+      tmp="${trunc}${newend}"
+      [[ -f $tmp ]] || break
+    done
+    echo "$tmp"
+  }
+  export -f mktemp
+fi
 
 ################################################
 ############## Main Program ####################
@@ -729,20 +751,8 @@ if [ -z "$batchname" ]; then
   #template contains no 'X'
   if [ -z "${template//[^X]}" ]; then
     batchname="${name}"
-  elif [ -n "$(type -p mktemp)" ]; then
-    batchname=$(mktemp -u ${name}${template}) || die "mktemp could not generate file"
   else
-    echo No mktemp found >&2
-    l=${template//[^X]}
-    l=${#l}
-    t2=${template}
-    batchname=${0}
-    while [ -f ${batchname} ]; do
-      for ((i=0;i<$l;i++)); do
-        t2=${t2/X/${RANDOM:0:1}}
-      done
-      batchname=${name}${t2}
-    done
+    batchname=$(mktemp -u ${name}${template}) || die "mktemp could not generate file"
   fi
   touch ${batchname}
 fi
