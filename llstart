@@ -432,7 +432,7 @@ ADV                      Default: $myshell
 ADV     --source FILE    Source this file before run the progam
 ADV     --needed FILES   Give the files needed to be copy to the scratch dir to
 ADV                      run, remember to use quotes ("file1 file2 file3" or "\$(ls *.d)")
-ADV     --cpback FILE    Copy back files from jobs which was start with BATCH
+ADV     --cpback FILE    Copy back files from jobs which was start with FILE
 
     QUEUE OPTIONS:
     -N, --NNNN           Number of cpus (also determines the queue together with walltime)
