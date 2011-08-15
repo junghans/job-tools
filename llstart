@@ -49,6 +49,7 @@
 #version 0.5.8 ,17.02.11 -- fixed a bug when sourcing rcfile
 #version 0.6.0 ,14.03.11 -- rm files in copy_back
 #version 0.6.1 ,01.08.11 -- fixed a bug in mktemp
+#version 0.6.2 ,15.08.11 -- fixed some bug in --needed logic
 
 ##############################################################
 # NEVER EVEN change settings below, but in your ~/.llstartrc #
@@ -979,7 +980,9 @@ if [ "$batchname" != "/dev/stdout" ] && [ "${HOSTNAME}" != "$real_submit_hostnam
    if [ -z "$filelist" ]; then
      echo "Run a simulation on $submit_host from here with no needed files ?" >&2
      echo "I do NOT think this make sense, do it manually!" >&2
-     die "to submit the script run: '${0##*/} --submit $batchname'"
+     #do not use die here as it would rm $batchname
+     echo "to submit the script run: '${0##*/} --submit $batchname'" >&2
+     exit 1
    fi
    message=$(run_on_host "test -d \$HOME/$sim_base/$batchname || echo Good") || die
    [ "$message" = "Good" ] || die "$submit_host:\$HOME/$sim_base/$batchname exists"
