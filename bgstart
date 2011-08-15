@@ -28,6 +28,7 @@
 #version 0.2.4 ,17.02.11 -- fixed a bug when sourcing rcfile
 #version 0.3.0 ,14.03.11 -- rm files in copy_back
 #version 0.3.1 ,01.08.11 -- fixed a bug in mktemp
+#version 0.3.2 ,15.08.11 -- added script variables
 
 ##############################################################
 # NEVER EVEN change settings below, but in your ~/.bgstartrc #
@@ -460,7 +461,14 @@ ADV -The usage of the scratch space is complicated, use it with care!
 ADV -You may add the input files to copy to the scratch dir with --needed
 ADV  or use "--needed '*'", if want to copy all files of the current dir.
 ADV -If the binary in not in your PATH, give the full path of binary.
-ADV
+
+ADV Note for script variables:
+ADV --------------------------
+ADV The following variables are available in the batch script and can be used
+ADV - npcu = Number of used cpus
+ADV - walltime = Walltime in the format XX:XX:XX
+ADV - wallsecs = Walltime in seconds
+ADV - wallhours = Walltime in hours
 
     Examples:
        ${0##*/} --128 -p sleep 30
@@ -468,9 +476,9 @@ ADV
        ${0##*/} --name gromacs mdrun_mpi -v
        ${0##*/} --128 --needed topol.tpr mdrun
        ${0##*/} --128 --source ~/myGromacs/GMXRC --needed topol.tpr  mdrun_mpi
-       ${0##*/} --128 --resubmit confout.gro --needed topol.tpr  mdrun_mpi -append -cpi state.cpt -maxh 24
+       ${0##*/} --128 --resubmit confout.gro --needed topol.tpr  mdrun_mpi -append -cpi state.cpt -maxh \\\$wallhours
                 (Note: -cpi is smart, the first time mdrun_mpi will start normal!)
-       ${0##*/} --128 --needed '*' --resubmit confout.gro  mdrun_mpi -append -cpi state.cpt -maxh 23
+       ${0##*/} --128 --needed '*' --resubmit confout.gro  mdrun_mpi -append -cpi state.cpt -maxh \\\$wallhours
                 (Note: --needed '*' needs a separate dir for the simulation!)
 
     Send comments and bugs to: junghans@mpip-mainz.mpg.de
@@ -827,6 +835,13 @@ fi
 cat <<EOF >>$batchname
 
 ${sh_source}
+
+#BEGIN useful script variables
+${set}walltime=${wall_time}
+${set}wallsecs=$(walltime_to_sec ${wall_time})
+${set}wallhours=$(( $(walltime_to_sec ${wall_time}) / 3600 ))
+${set}ncpus=${ncpus}
+#END useful script variables
 
 cd $sim_dir
 echo Hi, I am job \$JOB_ID on \$HOSTNAME in \$PWD

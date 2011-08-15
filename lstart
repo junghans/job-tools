@@ -62,6 +62,7 @@
 #version 4.0.3 ,26.05.11 -- missing a bug in hostlist
 #version 4.0.4 ,27.05.11 -- fixed a bug in find_best_host
 #version 4.0.5 ,01.08.11 -- fixed a bug in mktemp
+#version 4.0.6 ,15.08.11 -- added script variables
 
 #############################################################
 # NEVER EVEN change settings below, but in your ~/.qstartrc #
@@ -477,6 +478,11 @@ ADV -v, --version        Prints version
     -h, --help           Show short help message
         --longhelp       Show long help message
 
+ADV Note for script variables:
+ADV --------------------------
+ADV The following variables are available in the batch script and can be used
+ADV - npcu = Number of used cpus
+
     Examples:
        ${0##*/} -8p sleep 30
        ${0##*/} -8p --nompi mpirun -np 8 sleep 30
@@ -809,6 +815,10 @@ sed -i '/^$JOB_ID /d' $jobfile
 echo "$JOB_ID $batchname $PWD $logfile \$HOSTNAME \$\$" >> $jobfile
 
 ${sh_source}
+
+#BEGIN useful script variables
+${set}ncpus=${ncpus}
+#END useful script variables
 
 echo Hi, I am job $JOB_ID on \$HOSTNAME in \$PWD
 EOF
