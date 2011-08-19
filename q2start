@@ -924,9 +924,6 @@ cat <<EOF >>$batchname
 
 ${sh_source}
 
-#fix seg fault due to stack size
-ulimit -s 1048576
-
 #BEGIN COMPILER and MPI VARIABLES for $compenv
 $(show_compenv $compenv)
 #END  COMPILER and MPI VARIABLES for $compenv
