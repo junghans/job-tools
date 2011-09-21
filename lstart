@@ -444,7 +444,7 @@ ADV     --source FILE    Source this file before run the progam
                          Possible: whatever
                          Default: $ncpus
 ADV     --nompi          This is NOT a mpi job, so do NOT add mpirun (or equivalent)
-ADV                      to the command line (for ncpus > 1) automatically
+ADV                      to the command line (automatic for ncpus = 1)
 ADV     --runat HOST     Specify the host to run yourself
 ADV -b, --best           Run at the maschine with the lowest load (needed --hostlist)
 ADV     --hostlist       List of possible hosts to be used by --best

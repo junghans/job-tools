@@ -446,7 +446,7 @@ ADV     --mode XXX       Change threading mode: normal or smt (2 tasks per cpu)
 ADV                      Default: $mode
         --smt            Same as run in smt mode (2 tasks per cpu)
 ADV     --nompi          This is NOT a mpi job, so do NOT add mpirun (or equivalent)
-ADV                      to the command line (for ncpus > 1) automatically
+ADV                      to the command line (automatic for ncpus = 1)
         --walltime TIME  Change wall clock time
                          (use 32cpus and 00:30:00 for express queue,<=16 cpus and 00:15:00 for develop queue)
                          Default: $wall_time

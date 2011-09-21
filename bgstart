@@ -418,7 +418,7 @@ ADV     --cpback FILE    Copy back files from jobs which was start with FILE
 ADV     --netmode XXX    Change network mode: MESH/TORUS/PREFER_TORUS
 ADV                      Default: $netmode
 ADV     --nompi          This is NOT a mpi job, so do NOT add mpirun (or equivalent)
-ADV                      to the command line (for ncpus > 1) automatically
+ADV                      to the command line
         --walltime TIME  Change wall clock time
                          (use 128cpus and 00:30:00 or 256cpus and 02:00:00 for express queue)
                          Default: $wall_time
