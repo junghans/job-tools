@@ -63,6 +63,7 @@
 #version 4.0.4 ,27.05.11 -- fixed a bug in find_best_host
 #version 4.0.5 ,01.08.11 -- fixed a bug in mktemp
 #version 4.0.6 ,15.08.11 -- added script variables
+#version 4.1.0 ,21.09.11 -- added --ignore-obsolete and check for defaults
 
 #############################################################
 # NEVER EVEN change settings below, but in your ~/.qstartrc #
@@ -131,6 +132,8 @@ mail="none"
 header="LOCAL JOBS"
 #shell to be used by default, none=bash
 myshell="${SHELL##*/}"
+#ignore if we are using a obsolete version
+ignore_obsolete="no"
 #END DEFAULTS
 
 #internal options not set in rcfile
@@ -389,7 +392,7 @@ self_update() {
     sleep 5
     wget -O "${0}" "${selfurl}"
   else
-    echo "No updated needed"
+    echo "No update needed"
   fi
 }
 
@@ -466,17 +469,18 @@ ADV                       (useful after crash)
 ADV     --header          Show info header
 
     COMMON OPTIONS:
-ADV     --               End of options (if program starts with -)
-ADV -q, --quiet          Be quiet
-        --rcfile FILE    Extra setting file with defaults to read
-                         Default: read only $rcfile if exist
-ADV     --showdefaults   Show the default settings before reading $rcfile and the
-ADV                      file given by --rcfile, useful to create own rcfile with:
-ADV                      "${0##*/} --showdefaults > $rcfile"
-ADV -v, --version        Prints version
-        --selfupdate     Do a self update from googlecode
-    -h, --help           Show short help message
-        --longhelp       Show long help message
+ADV     --                 End of options (if program starts with -)
+ADV -q, --quiet            Be quiet
+        --rcfile FILE      Extra setting file with defaults to read
+                           Default: read only $rcfile if exist
+ADV     --showdefaults     Show the default settings before reading $rcfile and the
+ADV                        file given by --rcfile, useful to create own rcfile with:
+ADV                        "${0##*/} --showdefaults > $rcfile"
+ADV     --ignore-obsolete  Do not stop if ${0##*/} is obsolete
+ADV -v, --version          Prints version
+        --selfupdate       Do a self update from googlecode
+    -h, --help             Show short help message
+        --longhelp         Show long help message
 
 ADV Note for script variables:
 ADV --------------------------
@@ -589,6 +593,9 @@ while [ "${1#-}" != "$1" ]; do
   --showdefaults )
    sed -ne '/^#BEGIN DEFAULTS/,/^#END DEFAULTS/p' $0 | sed -e '1d' -e '$d' -e '/^[^#]/s/^/#/'
    exit 0;;
+  --ignore-obsolete )
+   ignore_obsolete="yes"
+   shift;;
   -[0-9] )
    ncpus=${1#-}
    number_check "$ncpus" "$1"
@@ -738,12 +745,26 @@ while [ "${1#-}" != "$1" ]; do
 done
 
 if version_check -q; then
-  x=${0##*/}; x=${x//?/#}
+  x=${0##*/}; x=${x//?/#}; y=${x//?/ }
   echo "##################################$x"
   echo "# Your version of ${0##*/} is obsolete ! #"
-  echo "# Please run '${0##*/} --selfupdate'     #"
+  echo "# Please run '${0##*/} --selfupdate' or  #"
+  echo "# use '--ignore-obsolete' option ${y}#"
   echo "##################################$x"
-  unset x
+  unset x y
+  [[ $ignore_obsolete = "yes" ]] || die
+fi
+
+if [[ -n $(type -p sha1sum) ]] && [[ $(${0##*/} --showdefaults | sha1sum) != "87d90227e51cb850ba0a48d1447ba91008810576  -" ]]; then
+  x=${0##*/}; x=${x//?/#}; y=${x//?/ }
+  echo "###########################################$x$x"
+  echo "# You have modified ${0##*/} internal settings !  $y#"
+  echo "# Please do not do that as '${0##*/} --selfupdate'$y#"
+  echo "# will overwrite them. Just run:          $y$y#"
+  echo "# '${0##*/} --showdefaults > $rcfile'               #"
+  echo "# and modify $rcfile                        $y#"
+  echo "###########################################$x$x"
+  unset x y
 fi
 
 if [ -z "$1" ]; then
