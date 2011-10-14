@@ -335,9 +335,10 @@ walltime_to_sec() {
   wall="$1"
   secs=${wall##*:}
   wall=${wall%:??}
-  secs=$(( $secs + 60*${wall##*:} ))
+  # 10# fixes basis to 10, and hence avoids 08 being interpreted as octal
+  secs=$(( 10#$secs + 60*10#${wall##*:} ))
   wall=${wall%:??}
-  secs=$(( $secs + 3600*${wall##*:} ))
+  secs=$(( 10#$secs + 3600*10#${wall##*:} ))
   echo "$secs"
 }
 
