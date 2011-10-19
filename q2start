@@ -1,6 +1,6 @@
 #! /bin/bash
 #
-# C.Junghans & K. Koschke
+# C. Junghans & K. Koschke
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -558,7 +558,7 @@ ADV - wallhours = Walltime in hours
 ADV    ${0##*/} -8 --compenv intel mdrun_mpi
 ADV    ${0##*/} --compenv pgi --show-compenv
 
-    Send comments and bugs to: junghans@mpip-mainz.mpg.de
+    Send comments and bugs to: koschke@mpip-mainz.mpg.de
 eoh
 }
 

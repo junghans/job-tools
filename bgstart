@@ -1,6 +1,6 @@
 #! /bin/bash
 #
-# C.Junghans
+# C. Junghans & K. Koschke
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -486,7 +486,7 @@ ADV - wallhours = Walltime in hours
        ${0##*/} --128 --needed '*' --resubmit confout.gro  mdrun_mpi -append -cpi state.cpt -maxh \\\$wallhours
                 (Note: --needed '*' needs a separate dir for the simulation!)
 
-    Send comments and bugs to: junghans@mpip-mainz.mpg.de
+    Send comments and bugs to: koschke@mpip-mainz.mpg.de
 eoh
 }
 
@@ -734,7 +734,7 @@ while [ "${1#-}" != "$1" ]; do
    show_logs "$2" "tail -f"
    exit $?;;
   -v | --version)
-   echo "${0##*/}, version $(get_version $0) ($branch branch) by C. Junghans"
+   echo "${0##*/}, version $(get_version $0) ($branch branch) by C. Junghans & K. Koschke"
    exit 0;;
   --selfupdate)
    self_update

@@ -1,6 +1,6 @@
 #! /bin/bash
 #
-# C.Junghans
+# C. Junghans & K. Koschke
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -494,7 +494,7 @@ ADV - npcu = Number of used cpus
        ${0##*/} -8 mdrun_mpi
        ${0##*/} echo -e 'SOL\\\\nSOL' \| g_rdf -b 100 -n index.ndx
 
-    Send comments and bugs to: junghans@mpip-mainz.mpg.de
+    Send comments and bugs to: koschke@mpip-mainz.mpg.de
 eoh
 }
 
@@ -722,7 +722,7 @@ while [ "${1#-}" != "$1" ]; do
    rm_job "$2"
    exit $?;;
   -v | --version)
-   echo "${0##*/}, version $(get_version $0) ($branch branch) by C. Junghans"
+   echo "${0##*/}, version $(get_version $0) ($branch branch) by C. Junghans & K. Koschke"
    exit 0;;
   --selfupdate)
    self_update
