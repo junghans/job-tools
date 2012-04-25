@@ -8,35 +8,11 @@ Content:
 all        - a script to run a command everywhere 
 findhost   - find hostname matching a pattern
 lstart     - a local "queueing" system, start jobs somewhere,
-             get a mail when they are finished, noce nohup, ...
-qstart     - run a command on the thop cluster
-q2start     - run a command on the thinc cluster
-llstart    - start simulation on vip (power6)
-bgstart    - start simulation on genuis (bluegene)
+             get a mail when they are finished, nice nohup, ...
+mstart     - run a command on conejo
 mpilist    - find a host which is free
-clean_thop - remove stuff from the thop scratch space
 showjobs   - summarize running jobs
-wer        - who is logged in ? (like rwho)
-werist     - infomation about a user
 sshscript  - remember working dir after ssh.
 	     To make it work add
 	     "[[ -r ~/.mypath ]] && cd $(cat ~/.mypath) && rm -f ~/.mypath"
              to your .bashrc
-hosts/*    - links to sshscript
-
-FILES_TO_INSTALL
-all
-hosts/*
-findhost
-qstart
-q2start
-clean_thop
-lstart
-llstart
-bgstart
-mpilist
-sshscript
-wer
-werist
-showjobs
-END_FILES_TO_INSTALL

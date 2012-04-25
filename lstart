@@ -154,7 +154,7 @@ rcfile="~/.${0##*/}rc"
 #local of file to member running jobs
 jobfile="$HOME/.runingjobs"
 #where to look for updates
-branch=mpip
+branch=lanl
 selfurl="http://job-tools.cj-overlay.googlecode.com/hg/lstart?r=$branch"
 
 qecho() {
@@ -494,7 +494,7 @@ ADV - npcu = Number of used cpus
        ${0##*/} -8 mdrun_mpi
        ${0##*/} echo -e 'SOL\\\\nSOL' \| g_rdf -b 100 -n index.ndx
 
-    Send comments and bugs to: koschke@mpip-mainz.mpg.de
+    Send comments and bugs to: junghans@lanl.gov
 eoh
 }
 

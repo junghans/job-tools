@@ -27,7 +27,7 @@ Examples:   ${0##*/} pckr
             ${0##*/} thop
             ${0##*/}
 
-Send bugs and comment to junghans@mpip-mainz.mpg.de
+Send bugs and comment to junghans@lanl.gov
 eof
 }
 

@@ -1,7 +1,7 @@
 #! /bin/bash
 
 #(C) 2008 C. Junghans
-# junghans@mpip-mainz.mpg.de
+# junghans@lanl.gov
 
 #version 0.1   08.10.08 -- initial version
 #version 0.1.1 08.10.08 -- do not show empty status
@@ -67,7 +67,7 @@ OPTIONS:
 Examples:  ${0##*/} --add lstart --add qstart
            ${0##*/} -s 1
 
-Send bugs and comment to junghans@mpip-mainz.mpg.de
+Send bugs and comment to junghans@lanl.gov
 eof
 }
 
