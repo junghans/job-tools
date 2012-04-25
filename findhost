@@ -23,9 +23,10 @@ OPTIONS:
 -h, --help      Show this help
 -v, --version   Show version
 
-Examples:   ${0##*/} pckr
-            ${0##*/} thop
+Examples:   ${0##*/} fire
+            ${0##*/} indium
             ${0##*/}
+	    touch host1 host2 host3; ${0##*/} \${PWD}
 
 Send bugs and comment to junghans@lanl.gov
 eof

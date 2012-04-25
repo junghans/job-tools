@@ -25,7 +25,7 @@ EOF
    exit 1
 fi
 
-for i in $(findhost pckr);do
+for i in $(findhost);do
    [[ "$quiet" = "yes" ]] || $echo "$i "
-   $i "$*"
+   ssh $i "$*"
 done
