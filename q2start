@@ -41,6 +41,7 @@
 #version 0.4.6 ,01.08.11 -- fixed a bug in mktemp
 #version 0.4.7 ,15.08.11 -- added script variables
 #version 0.5.0 ,21.09.11 -- added --ignore-obsolete and check for defaults
+#version 0.5.1 ,12.06.12 -- added support for >=12 cores
 
 ##############################################################
 # NEVER EVEN change settings below, but in your ~/.q2startrc #
@@ -281,7 +282,8 @@ extra_queue_header() {
   if [[ $secs -lt 901 && -z $specialq && $1 -gt 1 ]]; then
     echo "#$ -pe openmpit $1"
   else
-    [ $1 -gt 1 ] && echo "#$ -pe openmpi $1"
+    [ $1 -eq 8 ] && echo "#$ -pe openmpi $1"
+    [ $1 -ge 12 ] && echo "#$ -pe openmpiH144 $1"
   fi
 }
 
@@ -297,8 +299,10 @@ cpunr_to_queuename() {
     echo ""
   elif [ $1 -eq 8 ]; then
     echo ""
+  elif [ $1 -ge 12 ]; then
+    echo ""
   else
-    die "Do not know how to handle this Number of cpus '$1' - only 1/8 cpus are supported at this time"
+    die "Do not know how to handle this Number of cpus '$1' - only 1/8/>12 cpus are supported at this time"
   fi
 }
 
@@ -311,7 +315,7 @@ show_compenv(){
       export_variable CC gcc
       export_variable F77 gfortran
       export_variable CXX g++
-      export_variable MPIEXEC "/sw/linux/mpi/gcc/openmpi/bin/mpirun"
+      export_variable MPIEXEC "/sw/linux/mpi/gcc/openmpi/bin/mpirun --prefix /sw/linux/mpi/gcc/openmpi/ --mca btl self,openib"
     ;;
     intel)
       #order is important: source intel vars first before overriding openmpi bin by
@@ -476,7 +480,7 @@ ADV                      and remove the dir afterwards (useful after crash)
 
     QUEUE OPTIONS:
     -N                   Number of cpus (also determines the queue together with walltime)
-                         Possible: 1,8
+                         Possible: 1,8,12
                          Default: $ncpus
 ADV     --nompi          This is NOT a mpi job, so do NOT add mpirun (or equivalent)
 ADV                      to the command line (automatic for ncpus = 1)
@@ -508,7 +512,7 @@ ADV     --taillog  JOB_ID Same as --showlog but tail and follow
 ADV     --statjob  JOB_ID Show status of the job with number JOB_ID
 ADV     --pkill PATTERN   Kill all jobs matching a pattern
 ADV     --getjid PATTERN  Retrun the ids of all jobs matching PATTERN
-        --queueinfo [NR]  Show info about some queue [1|2|8] or all queues
+        --queueinfo [NR]  Show info about some queue [1|8|12] or all queues
 ADV     --header          Show info header
 
     COMMON OPTIONS:
@@ -545,7 +549,7 @@ ADV - wallsecs = Walltime in seconds
 ADV - wallhours = Walltime in hours
 
     Examples:
-       ${0##*/} -8p sleep 30
+       ${0##*/} --12 sleep 30
        ${0##*/} -8p --nompi mpirun -np 8 sleep 30
        ${0##*/} --name gromacs mdrun -v
        ${0##*/} -8 --needed topol.tpr mdrun_mpi
@@ -673,8 +677,11 @@ while [ "${1#-}" != "$1" ]; do
   --ignore-obsolete )
    ignore_obsolete="yes"
    shift;;
-  -[0-9] )
+  -[0-9] | --[0-9]* )
+   #avoid confusion: -12 would be -1 -2 warn the user
+   [ -n "$ncpus_set" ] && die "Number of cpu was set twice, first '$ncpu_set' and now '${1#-}', normally that is not desired!\nRemember '-12' is not same as '--12', but just shorthand notation for '-1 -2'"
    ncpus=${1#-}
+   ncpus=${ncpus#-}
    number_check "$ncpus" "$1"
    shift;;
   -p | --print )
