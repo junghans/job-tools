@@ -315,7 +315,15 @@ show_compenv(){
       export_variable CC gcc
       export_variable F77 gfortran
       export_variable CXX g++
-      export_variable MPIEXEC "/sw/linux/mpi/gcc/openmpi/bin/mpirun --prefix /sw/linux/mpi/gcc/openmpi/ --mca btl self,openib"
+      #mca btl self,openib prevents communication via ethernet (tcp/ip) - but also causes jobs to crash on 
+        #a) nodes without infiniband (bug) - in our case less than 12 cores
+        #b) nodes with infiniband that fails to initialize
+      if [[ $ncpus -ge 12 ]]
+      then
+        export_variable MPIEXEC "/sw/linux/mpi/gcc/openmpi/bin/mpirun --prefix /sw/linux/mpi/gcc/openmpi/ --mca btl self,openib"
+      else
+        export_variable MPIEXEC "/sw/linux/mpi/gcc/openmpi/bin/mpirun --prefix /sw/linux/mpi/gcc/openmpi/"
+      fi
     ;;
     intel)
       #order is important: source intel vars first before overriding openmpi bin by
