@@ -279,7 +279,7 @@ extra_queue_header() {
   number_check "$1" "extra_queue_header"
   secs=$(walltime_to_sec $wall_time) || die
   #test queue exists for 8 cores only and <15mins; gets overriden by specialq
-  if [[ $secs -lt 901 && -z $specialq && $1 -gt 1 ]]; then
+  if [[ $secs -lt 901 && -z $specialq && $1 -gt 1 && $1 -le 8 ]]; then
     echo "#$ -pe openmpit $1"
   else
     [ $1 -eq 8 ] && echo "#$ -pe openmpi $1"
