@@ -995,10 +995,10 @@ EOF
 [ -n "$filelist" ] && cat <<EOF >>$batchname
 echo Copy needed files:
 echo $filelist
-cp -r $filelist \$newdir
+cp -rH $filelist \$newdir 
 echo finished copying files
 EOF
-echo 'cd $newdir' >> $batchname
+echo 'cd $newdir' >> $batchname #note: the H flag in the above cp command was added in order to follow symlinks
 fi
 
 if [ -n "${extra_begin_code}" ]; then
