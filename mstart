@@ -1,6 +1,6 @@
 #! /bin/bash
 #
-# C. Junghans & K. Koschke
+# C. Junghans
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #version 0.1   ,25.04.12 -- initial version from q2start (MPIP)
+#version 0.1.1 ,07.09.12 -- first kind of working version
 
 #############################################################
 # NEVER EVEN change settings below, but in your ~/.mstartrc #
@@ -34,11 +35,11 @@ queue_path="/opt/MOAB/bin"
 #command to submit a job
 job_submit="$queue_path/msub"
 #command to get status
-job_status="$queue_path/mshow"
-#command to get status
-job_list="$queue_path/showq"
+job_status="$queue_path/checkjob"
+#command to get job list
+job_list="$queue_path/ljobs"
 #command to cancel/delete a job
-job_kill="$queue_path/mjobctl"
+job_kill="$queue_path/canceljob"
 #get information for queue
 queue_info="$queue_path/mdiag"
 #extra options for submit
@@ -48,7 +49,7 @@ submit="yes"
 #default number of cpus to use
 ncpus=8
 #default wall clock time
-wall_time=""
+wall_time="36:00:00"
 #on which node to run by default, empty = no default
 hostname=""
 #overwrite the queue to be used this, empty = normal queue
@@ -135,12 +136,12 @@ die() {
 check_job() {
   local message
   number_check "$1" "--checkjob"
-  message=$($job_status -u $USER) || die
+  message=$($job_list -u $USER) || die
   if [ -z "$(echo -e "$message" | awk "(\$1==$1){print \$0}")" ]; then
     qecho "Job '$1' MOT found on $cluster_name"
     return 1
   else
-    qecho "Job '$1' found on $cluster_name_host found"
+    qecho "Job '$1' found on $cluster_name"
     return 0
   fi
 }
@@ -169,7 +170,7 @@ kill_job() {
 
 stat_job() {
   number_check "$1" "--statjob"
-  $job_status -j $1
+  $job_status $1
   return $?
 }
 
@@ -185,8 +186,8 @@ submit_job() {
 print_jobids() {
   local message job_id
   [ -n "$1" ] || die "print_jobids: Expect a pattern"
-  message=$($job_status -u $USER) || die
-  for job_id in $(echo -e "$message" | awk "(\$3 ~ /${1:0:8}/){print \$1}"); do
+  message=$($job_list -u $USER) || die
+  for job_id in $(echo -e "$message" | awk "(\$3 ~ /${1}/){print \$1}"); do
     echo $job_id
   done
 }
@@ -327,7 +328,7 @@ ADV                      and remove the dir afterwards (useful after crash)
                          Default: $ncpus
 ADV     --nompi          This is NOT a mpi job, so do NOT add mpirun (or equivalent)
 ADV                      to the command line (automatic for ncpus = 1)
-        --walltime TIME  Change wall clock time (use 8cpu and  00:15:00 for test queue)
+        --walltime TIME  Change wall clock time
                          Default: $wall_time
 ADV     --runat HOST     Specify the host to run yourself
 ADV     --queue  NAME.q  Overwrite the queue to be used with NAME.q
@@ -404,12 +405,9 @@ show_logs() {
   local message path logfile
   [ -z "$2" ] && die "show_logs: Missing argument"
   number_check "$1" "--showlog/--taillog"
-  message=$($job_status -r -j $1) || die
-  path=$(echo -e "$message" | awk '/^cwd/{ print $2}')
-  logfile=$(echo -e "$message" | awk '/^stdout_path_list:/{ print $2}')
-  #strange standard stdout_path_list: begins with NONE:NONE:
-  logfile=${logfile#NONE:}
-  logfile=${logfile#NONE:}
+  message=$($job_status -v $1) || die
+  path=$(echo -e "$message" | awk '/^IWD:/{ print $2}')
+  logfile=$(echo -e "$message" | awk '/^OutputFile:/{ print $2}')
   $2 $path/$logfile
   return $?
 }
@@ -418,8 +416,8 @@ show_path() {
   local message path
   [ -z "$1" ] && die "show_path: Missing argument"
   number_check "$1" "--showdir"
-  message=$($job_status -r -j $1) || die
-  path=$(echo -e "$message" | awk '/^cwd/{ print $2}')
+  message=$($job_status -v $1) || die
+  path=$(echo -e "$message" | awk '/^IWD:/{ print $2}')
   [ -z "$path" ] && die "show_path: Could not get path"
   echo "$path"
   return $?
@@ -602,7 +600,7 @@ while [ "${1#-}" != "$1" ]; do
    exit $?;;
    --alljobs )
    echo "Job on $cluster_name"
-   $job_list
+   $job_list -u all
    exit $?;;
    --cpback )
    copy_back $2
@@ -660,7 +658,7 @@ while [ "${1#-}" != "$1" ]; do
  esac
 done
 
-if [[ -n $(type -p sha1sum) ]] && [[ $(${0##*/} --showdefaults | sha1sum) != "0c654fba6a77063799f751221abee88ca08d02ec  -" ]]; then
+if [[ -n $(type -p sha1sum) ]] && [[ $(${0} --showdefaults | sha1sum) != "a371144048be4360279df809136aa92e0038c46e  -" ]]; then
   x=${0##*/}; x=${x//?/#}; y=${x//?/ }
   echo "###########################################$x$x"
   echo "# You have modified ${0##*/} internal settings !  $y#"
@@ -722,7 +720,7 @@ cat <<EOF >> $batchname
 #MSUB -d ${PWD}
 #MSUB -j oe
 #MSUB -o $logfile
-#MSUB -l nodes=$(( ( $ncpus -1 ) / 8 + 1 ))
+#MSUB -l procs=$ncpus
 EOF
 [[ -n ${wall_time} ]] && echo "#MSUB -l walltime=${wall_time}" >> $batchname
 [[ -n $specialq ]] && echo "#MSUB -q ${specialq}" >> $batchname
@@ -755,8 +753,6 @@ elif [ "$myshell" = "none" ]; then
   echo "#MSUB -S /bin/bash" >> $batchname
 fi
 
-#${set}wallsecs=$(walltime_to_sec ${wall_time})
-#${set}wallhours=$(( $(walltime_to_sec ${wall_time}) / 3600 ))
 cat <<EOF >>$batchname
 
 ${sh_source}
@@ -764,6 +760,8 @@ ${sh_source}
 #BEGIN useful script variables
 ${set}walltime=${wall_time}
 ${set}ncpus=${ncpus}
+${set}wallsecs=$(walltime_to_sec ${wall_time})
+${set}wallhours=$(( $(walltime_to_sec ${wall_time}) / 3600 ))
 #END useful script variables
 
 cd $PWD
