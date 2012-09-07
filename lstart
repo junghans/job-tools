@@ -64,6 +64,7 @@
 #version 4.0.5 ,01.08.11 -- fixed a bug in mktemp
 #version 4.0.6 ,15.08.11 -- added script variables
 #version 4.1.0 ,21.09.11 -- added --ignore-obsolete and check for defaults
+#version 4.1.1 ,07.09.12 -- auto mail = $USER and fixed find_best_host
 
 #############################################################
 # NEVER EVEN change settings below, but in your ~/.qstartrc #
@@ -319,7 +320,7 @@ find_best_host() {
   local host uptime procs xhost xload
   [ -n "$hostlist" ] || die "find_best_host: no hostlist given, use --hostlist option" 
   [ -f "$hostlist" ] || die "find_best_host: could not find listhost '$hostlist' (give it with --hostlist)"
-  xload=100
+  xload="-100"
   xhost=BEST
   for host in $(<$hostlist); do
     qecho -n "Checking $host..."
@@ -902,7 +903,7 @@ echo "sed -i '/^$JOB_ID /d' $jobfile" >> $batchname
 if [ -z "$mail" ] || [ "$mail" = "none" ]; then
   :
 else
-[ "$mail" = "auto" ] && mail="$USER@$HOSTNAME"
+[ "$mail" = "auto" ] && mail="$USER"
    cat >> $batchname << EOF
 #mailstuff
 if [ \$result -eq 0 ]; then
