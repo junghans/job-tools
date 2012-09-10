@@ -88,7 +88,7 @@ hostlist=
 
 ########### MPI stuff ###############
 #should mpirun (or equivalent) be added: yes/no
-mpi_job="no"
+mpi_job="yes"
 #the command to add for mpi jobs
 mpirun_cmd="mpirun"
 
@@ -756,7 +756,7 @@ if version_check -q; then
   [[ $ignore_obsolete = "yes" ]] || die
 fi
 
-if [[ -n $(type -p sha1sum) ]] && [[ $(${0##*/} --showdefaults | sha1sum) != "87d90227e51cb850ba0a48d1447ba91008810576  -" ]]; then
+if [[ -n $(type -p sha1sum) ]] && [[ $(${0} --showdefaults | sha1sum) != "85c19f88f5103a2ccaf53acfb987b853b2c18ee7  -" ]]; then
   x=${0##*/}; x=${x//?/#}; y=${x//?/ }
   echo "###########################################$x$x"
   echo "# You have modified ${0##*/} internal settings !  $y#"
@@ -860,7 +860,6 @@ fi
 echo echo Starting simulation in \$PWD >> $batchname
 
 [[ "$time" = "yes" ]] && echo date >> $batchname
-[[ $ncpus -ne 1 ]] && echo "pgrep lamd > /dev/null || $lamboot_cmd" >> $batchname
 if [ "$scriptmode" = "yes" ]; then
   for i in $@; do
     [ -f "$i" ] || die "File '$i' not found"
