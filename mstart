@@ -141,7 +141,7 @@ check_job() {
     qecho "Job '$1' MOT found on $cluster_name"
     return 1
   else
-    qecho "Job '$1' found on $cluster_name"
+    qecho "Job '$1' found on $cluster_name_host found"
     return 0
   fi
 }
@@ -720,7 +720,7 @@ cat <<EOF >> $batchname
 #MSUB -d ${PWD}
 #MSUB -j oe
 #MSUB -o $logfile
-#MSUB -l procs=$ncpus
+#MSUB -l nodes=$(( ( $ncpus -1 ) / 8 + 1 ))
 EOF
 [[ -n ${wall_time} ]] && echo "#MSUB -l walltime=${wall_time}" >> $batchname
 [[ -n $specialq ]] && echo "#MSUB -q ${specialq}" >> $batchname
