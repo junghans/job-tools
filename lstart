@@ -157,6 +157,7 @@ jobfile="$HOME/.runingjobs"
 #where to look for updates
 branch=lanl
 selfurl="http://job-tools.cj-overlay.googlecode.com/hg/lstart?r=$branch"
+fileurl="~junghans/bin/lstart"
 
 qecho() {
   [[ "$quiet" = "no" ]] && echo -e "$@"
@@ -363,35 +364,28 @@ get_version() {
   sed -ne 's/^#version[[:space:]]*\([^[:space:]]*\)[[:space:]]*,.*$/\1/p' $1 | sed -n '$p'
 }
 
-get_webversion() {
-  local version
-  if [ "$1" = "-q" ]; then
-    version="$(wget -qO- "${selfurl}" | get_version)"
-  else
-    [ -z "$(type -p wget)" ] && die "wget not found"
-    version="$(wget -qO- "${selfurl}" )" || die "self_update: wget fetch from $selfurl failed"
-    version="$(echo -e "${version}" | get_version)"
-    [ -z "${version}" ] && die "get_webversion: Could not fetch new version number"
-  fi
-  echo "${version}"
-}
-
 version_check() {
-  [ -z "$(type -p wget)" ] && return 1
-  old_version="$(get_version $0)"
-  [ "$1" = "-q" ] && new_version="$(get_webversion -q)" || new_version="$(get_webversion)"
-  [ "$1" = "-q" ] || echo "Version of $selfurl is: $new_version"
-  [ "$1" = "-q" ] || echo "Local Version: $old_version"
+  local old_version="$(get_version $0)"
+  if ! version="$(wget -qO- "${selfurl}" 2>/dev/null )"; then
+    [[ -r $(eval echo $fileurl) ]] && version=$(<$(eval echo $fileurl))
+  fi
+  version="$(echo -e "${version}" | get_version)"
+  if [[ $1 = "-q" ]]; then
+    [[ -z $version ]] && return 1
+  else
+    [[ -z $version ]] && die "Could not get upstream version"
+    echo "Upstream Version: $version"
+    echo "Local Version: $old_version"
+  fi
   expr "${old_version}" \< "${new_version}" > /dev/null
   return $?
 }
 
 self_update() {
-  [ -z "$(type -p wget)" ] && die "wget not found"
   if version_check; then
-    echo "I will try replace myself now with $selfurl (CTRL-C to stop)"
+    echo "I will try replace myself now with the upstream version (CTRL-C to stop)"
     sleep 5
-    wget -O "${0}" "${selfurl}"
+    wget -O "${0}" "${selfurl}" 2>/dev/null || cp -H $(eval echo $fileurl) $0
   else
     echo "No update needed"
   fi
