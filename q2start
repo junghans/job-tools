@@ -284,7 +284,7 @@ extra_queue_header() {
     echo "#$ -pe openmpit $1"
   else
     [ $1 -eq 8 ] && echo "#$ -pe openmpi $1"
-    [ $1 -ge 12 ] && echo "#$ -pe openmpiH144 $1"
+    [ $1 -gt 8 ] && echo "#$ -pe openmpiIB $1"
   fi
 }
 
