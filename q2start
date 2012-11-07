@@ -897,7 +897,7 @@ if version_check -q; then
   [[ $ignore_obsolete = "yes" ]] || die
 fi
 
-if [[ -n $(type -p sha1sum) ]] && [[ $(${0##*/} --showdefaults | sha1sum) != "0c654fba6a77063799f751221abee88ca08d02ec  -" ]]; then
+if [[ -n $(type -p sha1sum) ]] && [[ $(${0##*/} --showdefaults | sha1sum) != "581633396424759d0b5bbd4aa945239a1c5f5c8b  -" ]]; then
   x=${0##*/}; x=${x//?/#}; y=${x//?/ }
   echo "###########################################$x$x"
   echo "# You have modified ${0##*/} internal settings !  $y#"
