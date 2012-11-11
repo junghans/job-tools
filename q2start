@@ -43,6 +43,7 @@
 #version 0.5.0 ,21.09.11 -- added --ignore-obsolete and check for defaults
 #version 0.5.1 ,12.06.12 -- added support for >=12 cores
 #version 0.5.2 ,18.06.12 -- version bump to force update
+#version 0.5.3 ,18.06.12 -- introduced new parallel environment at MPIP
 
 ##############################################################
 # NEVER EVEN change settings below, but in your ~/.q2startrc #
