@@ -291,7 +291,12 @@ extra_queue_header() {
       #default queue, requested cores must be a multiple of 8
       if [[ $(( $1 % 8 )) -eq 0 ]]
       then
-        echo "#$ -pe openmpiIB $1"
+        if [[ $1 -eq 8 ]]
+        then
+          echo "#$ -pe openmpi $1"
+        else
+          echo "#$ -pe openmpiIB $1"
+        fi
       fi
     #one special pe: hexa for 12 and 24 cores jobs
     elif [[ $specialpe == "hexa" ]]
