@@ -43,7 +43,7 @@
 #version 0.5.0 ,21.09.11 -- added --ignore-obsolete and check for defaults
 #version 0.5.1 ,12.06.12 -- added support for >=12 cores
 #version 0.5.2 ,18.06.12 -- version bump to force update
-#version 0.5.3 ,18.06.12 -- introduced new parallel environment at MPIP
+#version 0.5.3 ,11.11.12 -- introduced new parallel environment at MPIP
 
 ##############################################################
 # NEVER EVEN change settings below, but in your ~/.q2startrc #
@@ -527,7 +527,7 @@ ADV                      and remove the dir afterwards (useful after crash)
 
     QUEUE OPTIONS:
     -N                   Number of cpus (also determines the queue together with walltime)
-                         Possible: 1,8,12
+                         Possible: 12 or 24 (with --hexa); multiples of 8
                          Default: $ncpus
 ADV     --nompi          This is NOT a mpi job, so do NOT add mpirun (or equivalent)
 ADV                      to the command line (automatic for ncpus = 1)
@@ -597,7 +597,8 @@ ADV - wallsecs = Walltime in seconds
 ADV - wallhours = Walltime in hours
 
     Examples:
-       ${0##*/} --12 sleep 30
+       ${0##*/} --24        sleep 30    # will start on the three 8-cores nodes
+       ${0##*/} --24 --hexa sleep 30    # will start on the two 12-cores nodes
        ${0##*/} -8p --nompi mpirun -np 8 sleep 30
        ${0##*/} --name gromacs mdrun -v
        ${0##*/} -8 --needed topol.tpr mdrun_mpi
