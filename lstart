@@ -65,6 +65,7 @@
 #version 4.0.6 ,15.08.11 -- added script variables
 #version 4.1.0 ,21.09.11 -- added --ignore-obsolete and check for defaults
 #version 4.1.1 ,07.09.12 -- auto mail = $USER and fixed find_best_host
+#version 4.1.2 ,19.02.13 -- added ssh_opts and set BatchMode=yes in there
 
 #############################################################
 # NEVER EVEN change settings below, but in your ~/.qstartrc #
@@ -158,6 +159,7 @@ jobfile="$HOME/.runingjobs"
 branch=lanl
 selfurl="http://job-tools.cj-overlay.googlecode.com/hg/lstart?r=$branch"
 fileurl="~junghans/bin/lstart"
+ssh_opts="-o ConnectTimeout=15 -o BatchMode=yes"
 
 qecho() {
   [[ "$quiet" = "no" ]] && echo -e "$@"
@@ -177,14 +179,14 @@ run_on_host() {
     ssh="bash -c"
   else
     if [ "$checked_connection" = "no" ]; then
-      ssh $submit_host true || die "Heuristic connection check failed.
+      ssh $ssh_opts $submit_host true || die "Heuristic connection check failed.
 Change 'submit_host' variable in your setting file ($rcfile), which is now set to '$submit_host'.
 
 To generate a setting file run:
    '${0##*/} --showdefaults > $rcfile'"
       checked_connection="yes"
     fi
-    ssh="ssh $submit_host"
+    ssh="ssh $ssh_opts $submit_host"
   fi
   message=$($ssh "$*" 2>&1) || die "$ssh '$*' failed\nError message: $message"
   [ -z "$message" ] || echo -e "$message"
@@ -325,9 +327,9 @@ find_best_host() {
   xhost=BEST
   for host in $(<$hostlist); do
     qecho -n "Checking $host..."
-    uptime=$(ssh -o ConnectTimeout=15 $host uptime 2>/dev/null) || uptime=XXX
+    uptime=$(ssh $ssh_opts $host uptime 2>/dev/null) || uptime=XXX
     [ "$uptime" = "XXX" ] && echo " failed (ssh)" && continue
-    procs=$(ssh -o ConnectTimeout=15 $host "grep -c processor /proc/cpuinfo" 2>/dev/null) || procs=0
+    procs=$(ssh $ssh_opts $host "grep -c processor /proc/cpuinfo" 2>/dev/null) || procs=0
     [ "$procs" -eq 0 ] && echo " failed (ssh)" && continue
     uptime="$(echo "$uptime" | sed -n 's/^.*:\([^:,]*\),\([^,]*\),\([^,]*\)*$/\1/p')"
     [ -z "$uptime" ] && qecho " failed (load calc)" && continue
