@@ -85,7 +85,7 @@ submit="yes"
 #default number of cpus to use
 ncpus=1
 #list of possible hosts
-hostlist=
+hostlist="~/.${0##*/}_hosts"
 
 ########### MPI stuff ###############
 #should mpirun (or equivalent) be added: yes/no
@@ -321,8 +321,8 @@ get_next_free_jobid() {
 
 find_best_host() {
   local host uptime procs xhost xload
-  [ -n "$hostlist" ] || die "find_best_host: no hostlist given, use --hostlist option" 
-  [ -f "$hostlist" ] || die "find_best_host: could not find listhost '$hostlist' (give it with --hostlist)"
+  [ -z "$hostlist" ] && die "find_best_host: no hostlist given, use --hostlist option"
+  [ -f "$hostlist" ] || die "find_best_host: could not read listhost '$hostlist' (give it with --hostlist)"
   xload="-100"
   xhost=BEST
   for host in $(<$hostlist); do
@@ -752,7 +752,7 @@ if version_check -q; then
   [[ $ignore_obsolete = "yes" ]] || die
 fi
 
-if [[ -n $(type -p sha1sum) ]] && [[ $(${0} --showdefaults | sha1sum) != "85c19f88f5103a2ccaf53acfb987b853b2c18ee7  -" ]]; then
+if [[ -n $(type -p sha1sum) ]] && [[ $(${0} --showdefaults | sha1sum) != "d04d236ee3f1b5d03c80c27fa6faa54687baec35  -" ]]; then
   x=${0##*/}; x=${x//?/#}; y=${x//?/ }
   echo "###########################################$x$x"
   echo "# You have modified ${0##*/} internal settings !  $y#"
