@@ -322,10 +322,10 @@ get_next_free_jobid() {
 find_best_host() {
   local host uptime procs xhost xload
   [ -z "$hostlist" ] && die "find_best_host: no hostlist given, use --hostlist option"
-  [ -f "$hostlist" ] || die "find_best_host: could not read listhost '$hostlist' (give it with --hostlist)"
+  [ -f "${hostlist/\~/$HOME}" ] || die "find_best_host: could not read listhost '$hostlist' (give it with --hostlist)"
   xload="-100"
   xhost=BEST
-  for host in $(<$hostlist); do
+  for host in $(<${hostlist/\~/$HOME}); do
     qecho -n "Checking $host..."
     uptime=$(ssh $ssh_opts $host uptime 2>/dev/null) || uptime=XXX
     [ "$uptime" = "XXX" ] && echo " failed (ssh)" && continue
