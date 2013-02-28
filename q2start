@@ -44,6 +44,7 @@
 #version 0.5.1 ,12.06.12 -- added support for >=12 cores
 #version 0.5.2 ,18.06.12 -- version bump to force update
 #version 0.5.3 ,11.11.12 -- introduced new parallel environment at MPIP
+#version 0.5.4 ,28.02.13 -- fixed parallel environment, some tcsh characteristics and a few typos
 
 ##############################################################
 # NEVER EVEN change settings below, but in your ~/.q2startrc #
@@ -564,7 +565,8 @@ ADV     --taillog  JOB_ID Same as --showlog but tail and follow
 ADV     --statjob  JOB_ID Show status of the job with number JOB_ID
 ADV     --pkill PATTERN   Kill all jobs matching a pattern
 ADV     --getjid PATTERN  Retrun the ids of all jobs matching PATTERN
-        --queueinfo [NR]  Show info about some queue [1|8|12] or all queues
+        --queueinfo       Show info about all queues or a single
+                          specified with --queue
 ADV     --header          Show info header
 
     COMMON OPTIONS:
