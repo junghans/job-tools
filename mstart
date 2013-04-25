@@ -18,6 +18,7 @@
 
 #version 0.1   ,25.04.12 -- initial version from q2start (MPIP)
 #version 0.1.1 ,07.09.12 -- first kind of working version
+#version 0.1.2 ,25.04.13 -- fixed a bug in rcfile generation
 
 #############################################################
 # NEVER EVEN change settings below, but in your ~/.mstartrc #
@@ -480,7 +481,8 @@ done
 
 if [ -f ${rcfile/\~/$HOME} ]; then
   source ${rcfile/\~/$HOME} || die "Error when sourcing $rcfile, correct it or remove it"
-  qecho "I have sourced $rcfile"
+  #message after option parsing to avoid conflict with --showdefaults
+  #qecho "I have sourced $rcfile"
 fi
 
 while [ "${1#-}" != "$1" ]; do
@@ -663,6 +665,9 @@ if [[ -n $(type -p sha1sum) ]] && [[ $(${0} --showdefaults | sha1sum) != "a37114
   echo "###########################################$x$x"
   unset x y
 fi
+
+#message after option parsing to avoid conflict with --showdefaults
+[[ -f ${rcfile/\~/$HOME} ]] && qecho "I have sourced $rcfile"
 
 if [ -z "$1" ]; then
   [ -z "${default_opts}" ] && die "Missing program name (try --help)"
