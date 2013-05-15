@@ -285,7 +285,7 @@ extra_queue_header() {
   secs=$(walltime_to_sec $wall_time) || die
   #test queue exists for 8 cores only and <15mins; gets overriden by specialq
   if [[ $secs -lt 901 && -z $specialq && $1 -gt 1 && $1 -le 8 ]]; then
-    echo "#$ -pe openmpit $1"
+    echo "#$ -pe PE_T $1"
   else
     if [[ -z $specialpe ]]
     then
@@ -294,17 +294,23 @@ extra_queue_header() {
       then
         if [[ $1 -eq 8 ]]
         then
-          echo "#$ -pe openmpi $1"
+          echo "#$ -pe PE_8 $1"
         else
-          echo "#$ -pe openmpiIB $1"
+          echo "#$ -pe PE_Multi_IB $1"
         fi
       fi
-    #one special pe: hexa for 12 and 24 cores jobs
+    #two special pe: hexa for 12 and 24 cores jobs, old for 8 cores on SUSE 11.2
+    elif [[ $specialpe == "old" ]]
+    then
+      if [[ $1 -eq 8 ]]
+      then
+        echo "#$ -pe openmpi $1"
+      fi
     elif [[ $specialpe == "hexa" ]]
     then
       if [[ $1 -eq 12 || $1 -eq 24 ]]
       then
-        echo "#$ -pe openmpiB12 $1"
+        echo "#$ -pe PE_B12 $1"
       fi
     fi
   fi
@@ -337,6 +343,8 @@ cpunr_to_queuename() {
   elif [[ -n $specialpe ]]; then
     #hexa = 12 or 24
     if [[ $specialpe=="hexa" && ($1 -eq 12 || $1 -eq 24) ]];then
+      echo ""
+    elif [[ $specialpe=="old" && ($1 -eq 8) ]];then
       echo ""
     else
       die "Do not know how to handle this Number of cores '$1' - only 1, multiples of 8, 12 (--hexa) and 24 (--hexa) cores are supported at this time"
@@ -538,6 +546,7 @@ ADV     --runatnow HOST  like --runat, but one do it one time, not after the res
 ADV     --queue  NAME.q  Overwrite the queue to be used with NAME.q
 ADV                      (also in the case of --queueinfo)
 ADV     --hexa           Submit to the dual-hexa nodes (12 cores)
+ADV     --old            Submit to the SUSE 11.2 nodes
 ADV     --compenv NAME   Set your environment variables according to the compiler NAME
 ADV                      Options: $compenvs 
 ADV                      Default: $compenv
@@ -823,6 +832,9 @@ while [ "${1#-}" != "$1" ]; do
    shift 2;;
   --hexa )
    specialpe="hexa"
+   shift 1;;
+  --old )
+   specialpe="old"
    shift 1;;
    --compenv )
    compenv="$2"
