@@ -368,16 +368,11 @@ show_compenv(){
     intel)
       #order is important: source intel vars first before overriding openmpi bin by
       #exporting the intel/openmpi path
-      #$icc --version: icc (ICC) 12.0.2 20110112
-      #           this is the newest intel compiler for our cluster; it did produce binary code that crashes 
-      #           with a seg fault when the '-ipo' flag was used
       if [ "$myshell" == "tcsh" ]; then
-        echo 'source /sw/linux/intel/XE12u2/bin/compilervars.csh intel64;'
+        echo 'source /sw/linux/intel/XE13u2/bin/compilervars.csh intel64;'
       else 
-        echo 'source /sw/linux/intel/XE12u2/bin/compilervars.sh intel64;'
+        echo 'source /sw/linux/intel/XE13u2/bin/compilervars.sh intel64;'
       fi
-      #use the 11.1 version if you need the '-ipo' flag
-      #echo 'source /sw/linux/intel/11.1/bin/iccvars.sh intel64;'
       export_variable PATH /sw/linux/mpi/intel/openmpi/bin/:\$PATH
       export_variable LD_LIBRARY_PATH /sw/linux/mpi/intel/openmpi/lib/:\$LD_LIBRARY_PATH
       export_variable CC icc
