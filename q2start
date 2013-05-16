@@ -45,6 +45,7 @@
 #version 0.5.2 ,18.06.12 -- version bump to force update
 #version 0.5.3 ,11.11.12 -- introduced new parallel environment at MPIP
 #version 0.5.4 ,28.02.13 -- fixed parallel environment, some tcsh characteristics and a few typos
+#version 0.5.5 ,16.05.13 -- update of the mpip parallel environment
 
 ##############################################################
 # NEVER EVEN change settings below, but in your ~/.q2startrc #
