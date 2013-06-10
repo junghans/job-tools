@@ -20,6 +20,7 @@
 #version 0.1.1 ,07.09.12 -- first kind of working version
 #version 0.1.2 ,25.04.13 -- fixed a bug in rcfile generation
 #version 0.1.3 ,03.05.13 -- fixed in kill_job
+#version 0.2.0 ,10.06.13 -- added nddes/cnodes + cores_per_node
 
 #############################################################
 # NEVER EVEN change settings below, but in your ~/.mstartrc #
@@ -48,8 +49,10 @@ queue_info="$queue_path/mdiag"
 submit_opts=""
 #submit the script by default: yes/no
 submit="yes"
+#cores per node
+cores_per_node=8
 #default number of cpus to use
-ncpus=8
+ncpus=${cores_per_node}
 #default wall clock time
 wall_time="36:00:00"
 #on which node to run by default, empty = no default
@@ -319,9 +322,9 @@ ADV     --cpback FILE    Copy back files from scratch from the job, which was st
 ADV                      and remove the dir afterwards (useful after crash)
 
     QUEUE OPTIONS:
-    -N                   Number of cpus (also determines the queue together with walltime)
-                         Possible: 8,16,24,...
-                         Default: $ncpus
+    -N  --NNNN           Number of cpus (also determines the queue together with walltime)
+                         Possible: multiples of ${cores_per_node}
+                         Default: $ncpus 
 ADV     --nompi          This is NOT a mpi job, so do NOT add mpirun (or equivalent)
 ADV                      to the command line (automatic for ncpus = 1)
         --walltime TIME  Change wall clock time
@@ -376,13 +379,16 @@ ADV  takes time, so substract time needed for that from the wall of the actual s
 ADV Note for script variables:
 ADV --------------------------
 ADV The following variables are available in the batch script and can be used
-ADV - npcu = Number of used cpus
+ADV - npcus = Number of used cpus
 ADV - walltime = Walltime in the format XX:XX:XX
 ADV - wallsecs = Walltime in seconds
 ADV - wallhours = Walltime in hours
+ADV - nodes = hostname of the nodes used (e.g. host1,host2)
+ADV - cnodes = hostname and cpus in the way GNU parallel takes it with --sshlogin
 
     Examples:
        ${0##*/} -8p sleep 30
+       ${0##*/} --32 --nompi 'seq "${ncpus}" | parallel -n 0 --sshlogin "${cnodes}" hostname'
        ${0##*/} -8p --nompi mpirun -np 8 sleep 30
        ${0##*/} --name gromacs mdrun -v
        ${0##*/} -8 --needed topol.tpr mdrun_mpi
@@ -503,9 +509,13 @@ while [ "${1#-}" != "$1" ]; do
   --showdefaults )
    sed -ne '/^#BEGIN DEFAULTS/,/^#END DEFAULTS/p' $0 | sed -e '1d' -e '$d' -e '/^[^#]/s/^/#/'
    exit 0;;
-  -[0-9] )
+  -[0-9] | --[0-9]* )
+   #avoid confusion: -12 would be -1 -2 warn the user
+   [ -n "$ncpus_set" ] && die "Number of cpu was set twice, first '$ncpus_set' and now '${1#-}', normally that is not desired!\nRemember '-12' is not same as '--12', but just shorthand notation for '-1 -2'"
    ncpus=${1#-}
+   ncpus=${ncpus#-}
    number_check "$ncpus" "$1"
+   ncpus_set="$ncpus"
    shift;;
   -p | --print )
    batchname="/dev/stdout"
@@ -655,7 +665,7 @@ while [ "${1#-}" != "$1" ]; do
  esac
 done
 
-if [[ -n $(type -p sha1sum) ]] && [[ $(${0} --showdefaults | sha1sum) != "a371144048be4360279df809136aa92e0038c46e  -" ]]; then
+if [[ -n $(type -p sha1sum) ]] && [[ $(${0} --showdefaults | sha1sum) != "f1b1b31e3cc8d5e8274e3d293ac457423beba8c6  -" ]]; then
   x=${0##*/}; x=${x//?/#}; y=${x//?/ }
   echo "###########################################$x$x"
   echo "# You have modified ${0##*/} internal settings !  $y#"
@@ -719,8 +729,9 @@ cat <<EOF >> $batchname
 #msub options
 #MSUB -d ${PWD}
 #MSUB -j oe
+#MSUB -N ${batchname}
 #MSUB -o $logfile
-#MSUB -l nodes=$(( ( $ncpus -1 ) / 8 + 1 ))
+#MSUB -l nodes=$(( ( $ncpus -1 ) / ${cores_per_node} + 1 )):ppn=${cores_per_node}
 EOF
 [[ -n ${wall_time} ]] && echo "#MSUB -l walltime=${wall_time}" >> $batchname
 [[ -n $specialq ]] && echo "#MSUB -q ${specialq}" >> $batchname
@@ -742,7 +753,7 @@ elif [ "$myshell" = "zsh" ]; then
   echo "#MSUB -S /usr/bin/zsh" >> $batchname
   [ -f ~/.zshrc ] && sh_source="source ~/.zshrc"
 elif [ "$myshell" = "tcsh" ]; then
-  echo "#MSBU -S /bin/tcsh" >> $batchname
+  echo "#MSUB -S /bin/tcsh" >> $batchname
   if [ -f ~/.tcshrc ]; then
     sh_source="source ~/.tcshrc"
   elif [ -f ~/.cshrc ]; then
@@ -762,10 +773,13 @@ ${set}walltime=${wall_time}
 ${set}ncpus=${ncpus}
 ${set}wallsecs=$(walltime_to_sec ${wall_time})
 ${set}wallhours=$(( $(walltime_to_sec ${wall_time}) / 3600 ))
+${set}nodes=\`mdiag -j \$SLURM_JOBID -r -v | sed -n "/Nodes/s/.*'\(.*\)'.*/\1/p"\`
+#useful for GNU parallels --sshlogin option
+${set}cnodes=\`echo \$nodes |  sed 's@\(,\|^\)@&${cores_per_node}/@g'\`
 #END useful script variables
 
 cd $PWD
-echo Hi, I am job \$JOBID on \$HOSTNAME in \$PWD
+echo Hi, I am job \$SLURM_JOBID on \$HOSTNAME in \$PWD
 
 EOF
 if [ -n "$extra_source" ]; then
@@ -777,7 +791,7 @@ if [ "$scratch" = "yes" ]; then
   cat <<EOF >>$batchname
 #Copy the needed files
 ${set}olddir=\$PWD
-${set}newdir=$scratch_dir/\$USER/\$JOBID
+${set}newdir=$scratch_dir/\$USER/\$SLURM_JOBID
 mkdir -p \$newdir || exit 1
 EOF
 [ -n "$filelist" ] && cat <<EOF >>$batchname
@@ -822,7 +836,7 @@ fi
 cat <<EOF >>$batchname
 $cmdline
 ${set}result=\$?
-[ \$result -ne 0 ] && echo "\$JOBID finished unhappy!"
+[ \$result -ne 0 ] && echo "\$SLURM_JOBID finished unhappy!"
 EOF
 
 if [ -n "${extra_end_code}" ]; then
