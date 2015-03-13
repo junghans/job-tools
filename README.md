@@ -1,7 +1,7 @@
 #Scripts to handle simulation jobs
 
-* `q2start`: a submit script generator for SGE
-* `llstart`: a submit script generator for IBM's load leveler
+* `q2start`: a submit script generator for SGE (see `master` branch)
+* `llstart`: a submit script generator for IBM's load leveler (see `master` branch)
 * `lstart`: a minimal job manager written in bash for clusters without a queueing system
 * `mstart`: a submit script generator for Moab (see lanl branch)
 
