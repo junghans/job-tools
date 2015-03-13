@@ -21,6 +21,7 @@
 #version 0.1.2 ,25.04.13 -- fixed a bug in rcfile generation
 #version 0.1.3 ,03.05.13 -- fixed in kill_job
 #version 0.2.0 ,10.06.13 -- added nddes/cnodes + cores_per_node
+#version 0.2.1 ,13.03.15 -- moved to github
 
 #############################################################
 # NEVER EVEN change settings below, but in your ~/.mstartrc #
@@ -126,7 +127,7 @@ logfile=""
 rcfile="~/.${0##*/}rc"
 #where to look for updates
 branch="lanl"
-selfurl="http://job-tools.cj-overlay.googlecode.com/hg/mstart?r=$branch"
+selfurl="https://raw.githubusercontent.com/junghans/job-tools/$branch/mstart"
 fileurl="~junghans/bin/mstart"
 
 qecho() {
@@ -361,7 +362,7 @@ ADV     --showdefaults     Show the default settings before reading $rcfile and 
 ADV                        file given by --rcfile, useful to create own rcfile with:
 ADV                        "${0##*/} --showdefaults > $rcfile"
 ADV -v, --version          Prints version
-        --selfupdate       Do a self update from googlecode
+        --selfupdate       Do a self update from github
     -h, --help             Show short help message
         --longhelp         Show long help message
 
@@ -648,7 +649,7 @@ while [ "${1#-}" != "$1" ]; do
   --selfupdate)
    self_update
    exit $?;;
-  --hg)
+  --git)
    echo "${0##*/}: $(sed -ne 's/^#version.* -- \(.*\)$/\1/p' $0 | sed -n '$p')"
    exit 0;;
   -h | --help)
