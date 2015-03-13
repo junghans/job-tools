@@ -7,7 +7,5 @@
 
 ##Issues
 
-Report bugs on the [github issues site](https://github.com/junghans/cj-overlay/issues)
+Report bugs on the [github issues site](https://github.com/junghans/job-tools/issues)
 
-
-[![Build Status](https://travis-ci.org/junghans/cj-overlay.svg?branch=master)](https://travis-ci.org/junghans/cj-overlay)
