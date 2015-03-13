@@ -11,11 +11,10 @@ and
 * `findhost`: find hostname matching a pattern
 * `mpilist`: find a host which is free
 * `showjobs`: summarize running jobs
-* `sshscript`: remember working dir after ssh. To make it work add
+* `sshscript`: remember working dir after ssh. To make it work add the following line to your `~/.bashrc`
 ```
 [[ -r ~/.mypath ]] && cd $(cat ~/.mypath) && rm -f ~/.mypath
 ```
-  to your .bashrc
 
 ##Issues
 
